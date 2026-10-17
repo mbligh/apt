@@ -1,0 +1,31 @@
+name: Build Debian packages
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'packages/**'
+      - '.github/workflows/build-packages.yml'
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build tools
+        run: sudo apt-get update && sudo apt-get install -y unzip dpkg-dev curl
+      - name: Build packages
+        run: |
+          sh packages/deno/build.sh
+          sh packages/yt-dlp-sabr/build.sh
+      - name: Inspect packages
+        run: |
+          for f in dist/*.deb; do
+            dpkg-deb --info "$f"
+            dpkg-deb --contents "$f"
+          done
+      - name: Upload deb files
+        uses: actions/upload-artifact@v4
+        with:
+          name: debian-packages
+          path: dist/*.deb
