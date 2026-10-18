@@ -57,6 +57,8 @@ git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 git -C "$tmp" init -q
+git -C "$tmp" config user.name "github-actions[bot]"
+git -C "$tmp" config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 git -C "$tmp" checkout -q -b apt-repo
 cp -a site/. "$tmp/"
 git -C "$tmp" add -A
