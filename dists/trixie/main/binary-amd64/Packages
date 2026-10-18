@@ -1,0 +1,33 @@
+Package: deno
+Version: 2.9.7-1
+Architecture: amd64
+Maintainer: mbligh <noreply@github.com>
+Depends: libc6
+Filename: pool/main/deno_2.9.7-1_amd64.deb
+Size: 32666762
+MD5sum: 6782d07ffc5c9ccdff5456f5bd3d443a
+SHA1: f61a483de4c48677d3429246aad54cd0ab8a4c00
+SHA256: bd2d164d74f0ed3ed895a1546cf0b54f6522c4ae85d063ef0ccf03f2c81bef1e
+Section: utils
+Priority: optional
+Description: Deno JavaScript and TypeScript runtime
+ Official Deno Linux x86-64 binary, repackaged for local APT use.
+
+Package: yt-dlp-sabr
+Version: 2026.08.19.233452-1
+Architecture: all
+Maintainer: mbligh <noreply@github.com>
+Depends: python3, deno, ffmpeg
+Conflicts: yt-dlp
+Replaces: yt-dlp
+Provides: yt-dlp
+Filename: pool/main/yt-dlp-sabr_2026.08.19.233452-1_all.deb
+Size: 2982732
+MD5sum: b3c369b074a8b4ccd870c887da5d8ff7
+SHA1: b7e2808e92193e1a72d87ac6ff4ffb4501ef4a1e
+SHA256: b1d12c3d58e5f753e74a09b01d173e0260d5a66f1c7294d12478f6601b794ab7
+Section: video
+Priority: optional
+Description: yt-dlp with bashonly SABR support and local defaults
+ Python zipapp from bashonly/yt-dlp@sabr; executable is /usr/bin/yt-dlp.
+
