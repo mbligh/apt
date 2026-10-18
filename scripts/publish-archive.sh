@@ -64,7 +64,7 @@ git -C "$tmp" commit -qm "Publish APT archive from ${GITHUB_SHA:-main}"
 git -C "$tmp" remote add origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
 # Do not force-push: concurrent/competing changes must not be silently lost.
 if git ls-remote --exit-code --heads origin apt-repo >/dev/null 2>&1; then
-  git -C "$tmp" fetch -q origin apt-repo
+  git -C "$tmp" fetch -q origin apt-repo:refs/remotes/origin/apt-repo
   git -C "$tmp" merge -q --allow-unrelated-histories -s ours origin/apt-repo
 fi
 git -C "$tmp" push -q origin HEAD:refs/heads/apt-repo
