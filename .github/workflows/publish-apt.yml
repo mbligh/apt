@@ -52,7 +52,7 @@ jobs:
           Label: mbligh
           Codename: trixie
           Suite: trixie
-          Architectures: amd64 all
+          Architectures: amd64
           Components: main
           Description: mbligh Debian 13 packages
           SignWith: ${SIGNING_FINGERPRINT}
