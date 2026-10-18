@@ -23,7 +23,7 @@ Example key creation on a trusted machine (replace the UID):
 ```sh
 export GNUPGHOME="$(mktemp -d)"
 chmod 700 "$GNUPGHOME"
-gpg --batch --quick-generate-key 'mbligh APT Archive <apt@mbligh.org>' ed25519 sign 0
+gpg --batch --pinentry-mode loopback --passphrase '' --quick-generate-key 'mbligh APT Archive <apt@mbligh.org>' ed25519 sign 0
 gpg --armor --export-secret-keys > apt-signing-private.asc
 gpg --armor --export > apt-signing-public.asc
 gpg --with-colons --fingerprint
