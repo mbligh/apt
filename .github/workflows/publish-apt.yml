@@ -1,0 +1,79 @@
+name: Publish signed APT repository
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: apt-pages
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install archive tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y reprepro gnupg unzip dpkg-dev curl
+      - name: Build pinned packages
+        run: |
+          sh packages/deno/build.sh
+          sh packages/yt-dlp-sabr/build.sh
+          for deb in dist/*.deb; do
+            dpkg-deb --info "$deb"
+            dpkg-deb --contents "$deb"
+          done
+      - name: Import signing key
+        env:
+          APT_SIGNING_KEY: ${{ secrets.APT_SIGNING_KEY }}
+        run: |
+          set -eu
+          test -n "$APT_SIGNING_KEY" || { echo 'Missing APT_SIGNING_KEY repository secret' >&2; exit 1; }
+          mkdir -m 700 "$HOME/.gnupg"
+          printf '%s\n' "$APT_SIGNING_KEY" | gpg --batch --import
+          fingerprint="$(gpg --batch --with-colons --list-secret-keys | awk -F: '$1=="fpr" { print $10; exit }')"
+          test -n "$fingerprint"
+          echo "SIGNING_FINGERPRINT=$fingerprint" >> "$GITHUB_ENV"
+      - name: Assemble signed archive
+        run: |
+          set -eu
+          mkdir -p site/conf
+          cat > site/conf/distributions <<EOF
+          Origin: mbligh
+          Label: mbligh
+          Codename: trixie
+          Suite: trixie
+          Architectures: amd64 all
+          Components: main
+          Description: mbligh Debian 13 packages
+          SignWith: ${SIGNING_FINGERPRINT}
+          EOF
+          for deb in dist/*.deb; do
+            reprepro --basedir site includedeb trixie "$deb"
+          done
+          reprepro --basedir site export
+          gpg --batch --export "$SIGNING_FINGERPRINT" > site/mbligh-archive-keyring.gpg
+          gpg --batch --armor --export "$SIGNING_FINGERPRINT" > site/mbligh-archive-keyring.asc
+          touch site/.nojekyll
+          test -s site/dists/trixie/InRelease
+          test -s site/dists/trixie/main/binary-amd64/Packages.gz
+          gpg --batch --verify site/dists/trixie/InRelease
+          echo "Published signing fingerprint: $SIGNING_FINGERPRINT"
+          # No signing secret, internal reprepro database, or configuration in Pages output.
+          rm -rf site/db site/conf
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - name: Deploy Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
