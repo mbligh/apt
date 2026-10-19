@@ -31,6 +31,8 @@ jobs:
         with:
           persist-credentials: true
           fetch-depth: 0
+      - name: Fetch Debian 13 package index
+        run: curl --fail --location --retry 3 https://deb.debian.org/debian/dists/trixie/main/binary-amd64/Packages.xz -o /tmp/debian-trixie-Packages.xz
       - name: Install archive tools
         run: |
           sudo apt-get update
@@ -48,7 +50,7 @@ jobs:
           for script in packages/deno/build.sh packages/yt-dlp-sabr/build.sh; do
             sh "$script"
           done
-          /tmp/pypi-packager/bin/python scripts/build-pypi-debs
+          /tmp/pypi-packager/bin/python scripts/build-pypi-debs --debian-packages /tmp/debian-trixie-Packages.xz
           for deb in dist/*.deb; do
             dpkg-deb --info "$deb"
           done
