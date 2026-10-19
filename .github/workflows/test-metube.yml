@@ -1,0 +1,49 @@
+name: Test native MeTube package
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'packages/metube/**'
+      - '.github/workflows/test-metube.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Enable pnpm
+        run: |
+          npm install -g corepack
+          corepack enable
+      - name: Install package tools
+        run: sudo apt-get update && sudo apt-get install -y dpkg-dev
+      - name: Build MeTube Debian package
+        run: sh packages/metube/build.sh
+      - name: Inspect package and smoke-test Python imports
+        run: |
+          set -eu
+          deb="$(find dist -maxdepth 1 -name 'metube_*.deb' -print -quit)"
+          test -n "$deb"
+          dpkg-deb --info "$deb"
+          dpkg-deb --contents "$deb" | tail -30
+          mkdir -p /tmp/metube-test
+          dpkg-deb -x "$deb" /tmp/metube-test
+          test -s /tmp/metube-test/usr/lib/metube/ui/dist/metube/browser/index.html
+          test -f /tmp/metube-test/usr/lib/metube/python/aiohttp/__init__.py
+          PYTHONPATH="/tmp/metube-test/usr/lib/metube/python" python3 -c 'import aiohttp, socketio, watchfiles, curl_cffi, mutagen'
+          test ! -e /tmp/metube-test/usr/lib/metube/venv
+      - uses: actions/upload-artifact@v4
+        with:
+          name: metube-deb
+          path: dist/metube_*.deb
