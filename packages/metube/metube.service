@@ -10,9 +10,9 @@ User=1000
 Group=1000
 WorkingDirectory=/usr/lib/metube
 EnvironmentFile=/etc/metube/metube.conf
-Environment=PYTHONPATH=/usr/bin/yt-dlp
+Environment=PYTHONPATH=/usr/lib/metube/python:/usr/bin/yt-dlp
 Environment=PYTHONUNBUFFERED=1
-ExecStart=/usr/lib/metube/venv/bin/python /usr/lib/metube/app/main.py
+ExecStart=/usr/bin/python3 /usr/lib/metube/app/main.py
 Restart=on-failure
 RestartSec=5
 StateDirectory=metube
