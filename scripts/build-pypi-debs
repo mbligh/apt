@@ -61,7 +61,11 @@ def build(requirement, canonical, output, python):
         run(python, '-m', 'pip', 'install', '--disable-pip-version-check',
             '--no-index', '--find-links', str(wheels), '--no-compile',
             '--target', str(lib), requirement)
-        # pip --target may leave build-machine shebangs in bin/; wrappers replace them.\n        shutil.rmtree(lib / 'bin', ignore_errors=True)\n        for cache in lib.rglob('__pycache__'):\n            shutil.rmtree(cache)\n        distributions = list(importlib.metadata.distributions(path=[str(lib)]))
+        # pip --target may leave build-machine shebangs in bin/; wrappers replace them.
+        shutil.rmtree(lib / 'bin', ignore_errors=True)
+        for cache in lib.rglob('__pycache__'):
+            shutil.rmtree(cache)
+        distributions = list(importlib.metadata.distributions(path=[str(lib)]))
         match = [d for d in distributions if re.sub(r'[-_.]+', '-', d.metadata['Name']).lower() == canonical]
         if len(match) != 1:
             raise ValueError(f'Cannot identify installed distribution {canonical}')
@@ -96,7 +100,11 @@ def build(requirement, canonical, output, python):
             'Depends: python3 (>= 3.11), python3 (<< 3.14)\n'
             f'Description: Isolated PyPI distribution {canonical}\n'
             ' Automatically repackaged from platform-independent PyPI wheels.\n')
-        # Stable mtimes and sorted archive entries make repeat builds byte-identical.\n        for entry in sorted(payload.rglob('*'), reverse=True):\n            os.utime(entry, (946684800, 946684800), follow_symlinks=False)\n        os.utime(payload, (946684800, 946684800))\n        output.mkdir(parents=True, exist_ok=True)
+        # Stable mtimes and sorted archive entries make repeat builds byte-identical.
+        for entry in sorted(payload.rglob('*'), reverse=True):
+            os.utime(entry, (946684800, 946684800), follow_symlinks=False)
+        os.utime(payload, (946684800, 946684800))
+        output.mkdir(parents=True, exist_ok=True)
         deb = output / f'pypi-{canonical}_{version}-1_all.deb'
         run('dpkg-deb', '--build', '--root-owner-group', str(payload), str(deb))
         run('dpkg-deb', '--info', str(deb))
