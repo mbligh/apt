@@ -81,7 +81,7 @@ def build(requirement, canonical, output, python):
         for ep in scripts:
             if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.+-]*', ep.name):
                 raise ValueError(f'Unsafe command name: {ep.name}')
-            dest = bindir / ep.name
+            dest = bindir / ('pypi-' + ep.name)
             # Resolve entry points from the private wheel installation.
             dest.write_text('#!/usr/bin/python3\n'
                 'import sys, importlib.metadata\n'
@@ -95,7 +95,7 @@ def build(requirement, canonical, output, python):
         # Version is tied to upstream; rebuilding same version with different deps
         # is intentionally forbidden by the archive publisher.
         (control / 'control').write_text(
-            f'Package: pypi-{canonical}\nVersion: {version}-1\nSection: python\n'
+            f'Package: pypi-{canonical}\nVersion: {version}-2\nSection: python\n'
             'Priority: optional\nArchitecture: all\nMaintainer: mbligh APT <apt@mbligh.org>\n'
             'Depends: python3 (>= 3.11), python3 (<< 3.14)\n'
             f'Description: Isolated PyPI distribution {canonical}\n'
@@ -105,7 +105,7 @@ def build(requirement, canonical, output, python):
             os.utime(entry, (946684800, 946684800), follow_symlinks=False)
         os.utime(payload, (946684800, 946684800))
         output.mkdir(parents=True, exist_ok=True)
-        deb = output / f'pypi-{canonical}_{version}-1_all.deb'
+        deb = output / f'pypi-{canonical}_{version}-2_all.deb'
         run('dpkg-deb', '--build', '--root-owner-group', str(payload), str(deb))
         run('dpkg-deb', '--info', str(deb))
         print(f'BUILT {deb}')
