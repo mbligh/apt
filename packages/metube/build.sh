@@ -26,10 +26,9 @@ cp -a "$tmp/source/app" "$pkg/usr/lib/metube/"
 mkdir -p "$pkg/usr/lib/metube/ui/dist"
 cp -a "$tmp/source/ui/dist/metube" "$pkg/usr/lib/metube/ui/dist/"
 # Use the host Debian 13 Python version and build private dependencies.
-python3 -m venv "$pkg/usr/lib/metube/venv"
-"$pkg/usr/lib/metube/venv/bin/pip" install --no-cache-dir aiohttp python-socketio mutagen curl-cffi watchfiles
-# Remove pip's standalone yt-dlp if transitively installed; the packaged zipapp wins.
-"$pkg/usr/lib/metube/venv/bin/pip" uninstall -y yt-dlp >/dev/null 2>&1 || true
+# The private venv needs an install-path-safe build before enabling packaging.
+echo "MeTube package is staged but its Python environment is not yet relocatable" >&2
+exit 1
 find "$pkg/usr/lib/metube" -type d -name __pycache__ -prune -exec rm -rf {} +
 install -m 644 packages/metube/metube.conf "$pkg/etc/metube/metube.conf"
 install -m 644 packages/metube/ytdl-options.json "$pkg/etc/metube/ytdl-options.json"
