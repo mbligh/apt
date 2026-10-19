@@ -36,7 +36,7 @@ jobs:
       - name: Build packages
         run: |
           set -eu
-          for script in packages/*/build.sh; do
+          for script in packages/deno/build.sh packages/yt-dlp-sabr/build.sh; do
             sh "$script"
           done
           for deb in dist/*.deb; do
