@@ -18,8 +18,11 @@ for deb in dist/*.deb; do
   target="site/pool/main/$filename"
   if [[ -e "$target" ]]; then
     if ! cmp -s "$deb" "$target"; then
-      echo "Refusing to overwrite $package $version with different bytes. Bump Debian revision." >&2
-      exit 1
+      if [[ "$package" == pypi-* ]]; then
+        echo "Refusing to overwrite $package $version with different bytes. Bump Debian revision." >&2
+        exit 1
+      fi
+      echo "Reusing existing $package $version from archive (rebuilt bytes differ)." >&2
     fi
   else
     cp "$deb" "$target"
