@@ -67,3 +67,26 @@ Replace `https://apt.mbligh.org` with the actual Pages URL until custom-domain D
 Both packages create dedicated system users, share a `media` group, keep application state in `/var/lib/radarr` and `/var/lib/sonarr`, and provide native systemd units. Their upstream tarballs are pinned to release URLs and GitHub-published SHA-256 digests. The applications listen on their normal default ports (Radarr 7878, Sonarr 8989); restrict access using host firewall/network policy. Add the download client and media storage users to the `media` group and configure shared directory permissions separately. Application self-updates should be disabled in Settings once installed; upgrades must come from APT.
 
 **Verification required:** confirm the new packages build and install successfully on Debian 13 amd64, including service start, upgrade, removal and purge, before using on a production host. The publishing workflow automatically builds all package scripts on push; a failure in any package prevents publication. Existing unrelated build failures can therefore block deployment.
+
+
+## Automatically repackaging PyPI packages
+
+Edit [pypi-packages.txt](pypi-packages.txt) on `main` and add one PyPI distribution name per line, optionally pinned with `==`:
+
+```text
+httpie==3.2.4
+```
+
+On push, **Test PyPI Debian packages** checks the build and **Publish signed APT repository** rebuilds the packages and includes them in the signed archive. Packages are named `pypi-<normalized-name>`; commands exported by upstream `console_scripts` retain their original names. Empty/comment-only manifests produce no PyPI packages. A failed build prevents publication; check Actions logs. Publication still requires `APT_SIGNING_KEY` and configured Pages.
+
+Build locally with Python 3.13, `pip`, and `dpkg-deb`:
+
+```sh
+python3.13 -m venv /tmp/pypi-packager
+/tmp/pypi-packager/bin/python -m pip install -U pip
+/tmp/pypi-packager/bin/python scripts/build-pypi-debs
+```
+
+The packager accepts **only pure-Python wheels throughout the dependency tree**, does not execute upstream installation hooks at package installation time, and installs private libraries in `/usr/lib/pypi-<name>`. It does not automatically create services, package native extensions, install `data_files` outside its private directory, or handle applications that require extra operating-system libraries. Command-name conflicts with other packages are not resolved automatically. Only install packages from publishers you trust: upstream code still executes when launched. Build isolation is not a security sandbox.
+
+**Versioning:** The archive refuses to overwrite an existing Debian version with different bytes. A changed transitive dependency without a changed root package version will cause a publish failure; pinning root versions alone does not lock the dependency tree. A lockfile and automatic Debian revision management are future improvements. The workflow currently rebuilds every listed package on publication rather than only the changed entry.
