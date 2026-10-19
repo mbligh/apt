@@ -1,16 +1,15 @@
 # MeTube native package (experimental)
 
 Installs the upstream MeTube source and built Angular UI under /usr/lib/metube,
-Python dependencies in a private virtual environment, configuration under
+Python dependencies in a private /usr/lib/metube/python module directory, configuration under
 /etc/metube, and a systemd unit. No Docker involved. The service is installed
 **disabled**, and it is not started during package installation.
 
-Requires a Debian system with Python 3.13+ (Debian trixie). Runtime is pinned
-to an upstream Git commit in build.sh; update it deliberately before rebuilding.
-The Python dependencies are resolved at build time; maintain a dependency
-lock for reproducible subsequent releases.
+Requires a Debian system with Python 3.13+ (Debian trixie). Runtime is pinned to an upstream Git commit in build.sh. Python runtime
+requirements are pinned in requirements.txt; wheel hashes are not yet pinned.
+CI tests the package build but does not publish MeTube to the APT repository.
 
-The yt-dlp-sabr package provides a Python zipapp; PYTHONPATH=/usr/bin/yt-dlp
+The yt-dlp-sabr package provides a Python zipapp; PYTHONPATH=/usr/lib/metube/python:/usr/bin/yt-dlp
 lets MeTube import its yt_dlp package while using the separately managed
 /usr/bin/yt-dlp binary. Do not pip install another yt-dlp into the venv.
 
