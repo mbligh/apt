@@ -6,6 +6,8 @@ on:
     branches: [main]
     paths:
       - 'packages/**'
+      - 'pypi-packages.txt'
+      - 'scripts/build-pypi-debs'
       - 'scripts/publish-archive.sh'
       - '.github/workflows/publish-apt.yml'
 
@@ -33,12 +35,20 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y dpkg-dev apt-utils gnupg unzip curl
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Prepare PyPI packaging environment
+        run: |
+          python -m venv /tmp/pypi-packager
+          /tmp/pypi-packager/bin/pip install 'pip>=24,<27'
       - name: Build packages
         run: |
           set -eu
           for script in packages/deno/build.sh packages/yt-dlp-sabr/build.sh; do
             sh "$script"
           done
+          /tmp/pypi-packager/bin/python scripts/build-pypi-debs
           for deb in dist/*.deb; do
             dpkg-deb --info "$deb"
           done
