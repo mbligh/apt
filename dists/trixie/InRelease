@@ -1,0 +1,34 @@
+-----BEGIN PGP SIGNED MESSAGE-----
+Hash: SHA512
+
+Architectures: amd64
+Codename: trixie
+Components: main
+Date: Mon, 19 Oct 2026 13:27:16 +0000
+Description: mbligh Debian 13 packages
+Label: mbligh
+Origin: mbligh
+Suite: trixie
+MD5Sum:
+ 85aecc27422243c94779339f04415224              175 Release
+ 88b7826a14f6b31728d15c3c6126fc33             2637 main/binary-amd64/Packages
+ a3c98a9ca748e03e0f828ee36358a49f             1100 main/binary-amd64/Packages.gz
+SHA1:
+ f3cf5b8b2dcd2c3178873f2639a7c9782799f9bd              175 Release
+ 0bdbbd84fed5170b2fd440a7ad3eb59da04730aa             2637 main/binary-amd64/Packages
+ 1eca28a9dad1d69586feb5db3e3e9a9ed5a46014             1100 main/binary-amd64/Packages.gz
+SHA256:
+ 5087f6880fdd116f135c2e5b133ab55d408717b5117d2abeb0d39fb39d7ba037              175 Release
+ 6a5969405f44a502ab9722b24e2f036144c866ac18a9b7c78a2e0ae7134ac8a6             2637 main/binary-amd64/Packages
+ 17b74c43fddf31d74af68b2a6eab746a005ee84eeea847484673e01d70dc2bb9             1100 main/binary-amd64/Packages.gz
+SHA512:
+ 6a11b43b58ac720c0064a5185c6897e0b756d020740eb9a466e268270931dcb0859bdf8fce9c29d2f51b2250b316079a4124cb97805c9dece488bda4b7926c34              175 Release
+ 206d742b6ee5712aabd1048ed49cd1809405161aa5095705f63a77f7ba089f4ddfeeb5d77fb7f3daf6d0fbf5a03e5ae2b90cf5c575514e8b9686a6b62132835c             2637 main/binary-amd64/Packages
+ 38c2386c9495c9ee85e8177c9caae1971bdef6a900005a4878f19b6549a0622e22fc7fd9bddd651bb868e2dc8eee93bc87022ac4d544af82f533336686c2f956             1100 main/binary-amd64/Packages.gz
+-----BEGIN PGP SIGNATURE-----
+
+iHUEARYKAB0WIQQnK8MQ2aeKZM0D49nYjnyavh1aagUCatYatAAKCRDYjnyavh1a
+auXOAQC5GgJhIdqJmBdbDanOGt/VVGJYYjnrHwAlsI8NI+qAwwEA5Myf1+5C8NuR
+bKwL1DCMOlaGtV2vnc0fyPfsTVLloA8=
+=2j0s
+-----END PGP SIGNATURE-----
