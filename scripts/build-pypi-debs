@@ -3,6 +3,7 @@
 import argparse
 import email
 import importlib.metadata
+import lzma
 import os
 from pathlib import Path
 import re
@@ -111,12 +112,25 @@ def build(requirement, canonical, output, python):
         print(f'BUILT {deb}')
 
 
+def debian_names(path):
+    if not path:
+        return set()
+    with lzma.open(path, 'rt', encoding='utf-8') as stream:
+        return {line[9:].strip() for line in stream if line.startswith('Package: ')}
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--manifest', default='pypi-packages.txt')
     parser.add_argument('--output', default='dist')
+    parser.add_argument('--debian-packages', help='Debian trixie Packages.xz index for duplicate detection')
     args = parser.parse_args()
+    existing = debian_names(args.debian_packages)
     for requirement, canonical in manifest(args.manifest):
+        debian_package = 'python3-' + canonical
+        if debian_package in existing:
+            print(f'SKIP {requirement}: Debian already provides {debian_package}')
+            continue
         build(requirement, canonical, Path(args.output), sys.executable)
 
 
