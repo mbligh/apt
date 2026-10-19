@@ -75,4 +75,12 @@ Conventions:
 
 ## Status
 
-Architecture documented only. No package builds, GitHub Pages publication, signing key, apt-cacher-ng service or client configuration has yet been implemented.
+Initial packaging and archive workflows exist in GitHub; PyPI repackaging is now implemented but has not yet been CI-verified with a nonempty manifest. Pages deployment, signing key configuration, and apt-cacher-ng status must be verified separately.
+
+
+## PyPI-to-Debian packaging
+
+A manifest-driven builder (`pypi-packages.txt`, `scripts/build-pypi-debs`) automatically generates architecture-independent `pypi-*` packages from pure-Python wheels and their resolved dependencies. Build-time pip runs only in GitHub Actions or a developer environment; installed systems need only APT and the system Python 3.13. Application imports are isolated under `/usr/lib/pypi-<name>`, and console-script wrappers are placed in `/usr/bin`. The builder targets Debian 13 and rejects native wheels, source distributions, and unsupported manifest syntax.
+
+The publication workflow now includes the manifest and builder as triggers and imports generated debs into the existing signed archive. Validation and publishing are separate workflows; no unverified packages are intentionally deployed. Existing publication limitations remain: transitive dependencies are not locked, updates to a root package without a version bump can collide with archived bytes, command names may conflict, and no automatic service configuration or native-extension builds are attempted. Future work: lockfile with hashes, clean-install smoke tests, dependency metadata checks, command-conflict detection, automated Debian revisions, and optional architecture-specific builds.
+
