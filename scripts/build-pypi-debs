@@ -1,0 +1,116 @@
+#!/usr/bin/env python3
+"""Build self-contained Debian packages from pure-Python PyPI wheels."""
+import argparse
+import email
+import importlib.metadata
+import os
+from pathlib import Path
+import re
+import shutil
+import subprocess
+import sys
+import tempfile
+import zipfile
+
+NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]*(?:==[A-Za-z0-9][A-Za-z0-9_.+!-]*)?$")
+
+
+def run(*args, **kwargs):
+    subprocess.run(args, check=True, **kwargs)
+
+
+def manifest(path):
+    seen = set()
+    for number, line in enumerate(Path(path).read_text().splitlines(), 1):
+        item = line.split('#', 1)[0].strip()
+        if not item:
+            continue
+        if not NAME.fullmatch(item):
+            raise ValueError(f'{path}:{number}: unsupported requirement: {item!r}')
+        canonical = re.sub(r'[-_.]+', '-', item.split('==')[0]).lower()
+        if canonical in seen:
+            raise ValueError(f'{path}:{number}: duplicate package: {canonical}')
+        seen.add(canonical)
+        yield item, canonical
+
+
+def metadata(wheel):
+    with zipfile.ZipFile(wheel) as archive:
+        names = [n for n in archive.namelist() if n.endswith('.dist-info/WHEEL')]
+        if len(names) != 1:
+            raise ValueError(f'Invalid wheel metadata: {wheel}')
+        headers = email.message_from_bytes(archive.read(names[0]))
+        if not headers.get_all('Tag') or any(not tag.endswith('-none-any') for tag in headers.get_all('Tag')):
+            raise ValueError(f'Native/platform wheel unsupported: {wheel}')
+
+
+def build(requirement, canonical, output, python):
+    with tempfile.TemporaryDirectory(prefix='pypi-deb-') as temp:
+        root = Path(temp)
+        wheels = root / 'wheels'
+        wheels.mkdir()
+        # Resolve the full tree as platform-independent wheels, never sdists.
+        run(python, '-m', 'pip', 'download', '--disable-pip-version-check',
+            '--only-binary=:all:', '--platform', 'any', '--implementation', 'py',
+            '--abi', 'none', '--dest', str(wheels), requirement)
+        for wheel in wheels.glob('*.whl'):
+            metadata(wheel)
+        payload = root / 'payload'
+        lib = payload / 'usr' / 'lib' / ('pypi-' + canonical)
+        lib.mkdir(parents=True)
+        run(python, '-m', 'pip', 'install', '--disable-pip-version-check',
+            '--no-index', '--find-links', str(wheels), '--no-compile',
+            '--target', str(lib), requirement)
+        distributions = list(importlib.metadata.distributions(path=[str(lib)]))
+        match = [d for d in distributions if re.sub(r'[-_.]+', '-', d.metadata['Name']).lower() == canonical]
+        if len(match) != 1:
+            raise ValueError(f'Cannot identify installed distribution {canonical}')
+        version = match[0].version
+        if not re.fullmatch(r'[0-9A-Za-z.+:~\-]+', version):
+            raise ValueError(f'Unsupported Debian version: {version}')
+        # The private import path is injected by wrappers; no runtime pip calls.
+        scripts = [ep for ep in match[0].entry_points if ep.group == 'console_scripts']
+        if not scripts:
+            print(f'WARNING: {canonical} has no console_scripts; packaging library only')
+        bindir = payload / 'usr' / 'bin'
+        bindir.mkdir(parents=True)
+        for ep in scripts:
+            if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.+-]*', ep.name):
+                raise ValueError(f'Unsafe command name: {ep.name}')
+            dest = bindir / ep.name
+            # Resolve entry points from the private wheel installation.
+            dest.write_text('#!/usr/bin/python3\n'
+                'import sys, importlib.metadata\n'
+                f'sys.path.insert(0, {str("/usr/lib/pypi-" + canonical)!r})\n'
+                f'dists = importlib.metadata.distributions(path={["/usr/lib/pypi-" + canonical]!r})\n'
+                f'eps = (e for d in dists if d.metadata["Name"].lower().replace("_", "-").replace(".", "-") == {canonical!r} for e in d.entry_points)\n'
+                f'sys.exit(next(e for e in eps if e.group == "console_scripts" and e.name == {ep.name!r}).load()())\n')
+            dest.chmod(0o755)
+        control = payload / 'DEBIAN'
+        control.mkdir()
+        # Version is tied to upstream; rebuilding same version with different deps
+        # is intentionally forbidden by the archive publisher.
+        (control / 'control').write_text(
+            f'Package: pypi-{canonical}\nVersion: {version}-1\nSection: python\n'
+            'Priority: optional\nArchitecture: all\nMaintainer: mbligh APT <apt@mbligh.org>\n'
+            'Depends: python3 (>= 3.11), python3 (<< 3.14)\n'
+            f'Description: Isolated PyPI distribution {canonical}\n'
+            ' Automatically repackaged from platform-independent PyPI wheels.\n')
+        output.mkdir(parents=True, exist_ok=True)
+        deb = output / f'pypi-{canonical}_{version}-1_all.deb'
+        run('dpkg-deb', '--build', '--root-owner-group', str(payload), str(deb))
+        run('dpkg-deb', '--info', str(deb))
+        print(f'BUILT {deb}')
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--manifest', default='pypi-packages.txt')
+    parser.add_argument('--output', default='dist')
+    args = parser.parse_args()
+    for requirement, canonical in manifest(args.manifest):
+        build(requirement, canonical, Path(args.output), sys.executable)
+
+
+if __name__ == '__main__':
+    main()
