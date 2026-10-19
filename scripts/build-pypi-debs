@@ -81,7 +81,7 @@ def build(requirement, canonical, output, python):
         for ep in scripts:
             if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.+-]*', ep.name):
                 raise ValueError(f'Unsafe command name: {ep.name}')
-            dest = bindir / ('pypi-' + ep.name)
+            dest = bindir / ep.name
             # Resolve entry points from the private wheel installation.
             dest.write_text('#!/usr/bin/python3\n'
                 'import sys, importlib.metadata\n'
