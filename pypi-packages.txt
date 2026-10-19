@@ -1,0 +1,4 @@
+# One PyPI distribution per line; optionally pin a version (e.g. httpie==3.2.4).
+# Only pure-Python wheel dependency trees are supported initially.
+# Example:
+# httpie
