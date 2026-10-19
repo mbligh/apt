@@ -1,0 +1,33 @@
+name: Test PyPI Debian packages
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'pypi-packages.txt'
+      - 'scripts/build-pypi-debs'
+      - '.github/workflows/test-pypi.yml'
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-pip python3-venv
+          python3 -m venv /tmp/pypi-packager
+          /tmp/pypi-packager/bin/pip install 'pip>=24,<27'
+          /tmp/pypi-packager/bin/python scripts/build-pypi-debs
+      - name: Inspect packages
+        run: |
+          for deb in dist/pypi-*.deb; do
+            [ -f "$deb" ] || break
+            dpkg-deb --info "$deb"
+            dpkg-deb --contents "$deb"
+          done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pypi-debs
+          path: dist/pypi-*.deb
+          if-no-files-found: ignore
