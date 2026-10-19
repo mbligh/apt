@@ -7,6 +7,8 @@ See [project.md](project.md) for design decisions.
 ## Packages
 
 - `deno`: upstream Deno 2.9.7, packaged as `2.9.7-1`
+- `radarr`: upstream 6.4.4.10685, native systemd service (pending CI verification)
+- `sonarr`: upstream 4.0.20.3014, native systemd service (pending CI verification)
 - `yt-dlp-sabr`: bashonly SABR fork, packaged as `2026.08.19.233452-1`, providing `/usr/bin/yt-dlp` and `/etc/yt-dlp.conf`
 
 ## Initial setup (repository owner)
@@ -59,3 +61,9 @@ Replace `https://apt.mbligh.org` with the actual Pages URL until custom-domain D
 `Build Debian packages` builds the two pinned packages as downloadable GitHub Actions artifacts. `Publish signed APT repository` independently rebuilds them, signs the repository metadata with `reprepro`, and deploys to Pages. Upstream release archives are SHA-256 checked.
 
 **Current limitation:** Each publication builds a fresh archive containing the current versions only. Previous versions are not retained for rollback yet. Do not depend on historical versions remaining downloadable. The next improvement is persistent archive history and a reusable artifact-based publishing pipeline.
+
+## Radarr and Sonarr (fresh installs)
+
+Both packages create dedicated system users, share a `media` group, keep application state in `/var/lib/radarr` and `/var/lib/sonarr`, and provide native systemd units. Their upstream tarballs are pinned to release URLs and GitHub-published SHA-256 digests. The applications listen on their normal default ports (Radarr 7878, Sonarr 8989); restrict access using host firewall/network policy. Add the download client and media storage users to the `media` group and configure shared directory permissions separately. Application self-updates should be disabled in Settings once installed; upgrades must come from APT.
+
+**Verification required:** confirm the new packages build and install successfully on Debian 13 amd64, including service start, upgrade, removal and purge, before using on a production host. The publishing workflow automatically builds all package scripts on push; a failure in any package prevents publication. Existing unrelated build failures can therefore block deployment.
