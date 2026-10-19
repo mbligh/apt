@@ -1,0 +1,24 @@
+Architectures: amd64
+Codename: trixie
+Components: main
+Date: Mon, 19 Oct 2026 12:00:11 +0000
+Description: mbligh Debian 13 packages
+Label: mbligh
+Origin: mbligh
+Suite: trixie
+MD5Sum:
+ e984838ae91d5a7a2c06da00aba662b8              175 Release
+ 8f7dc5e7d2a2a7f1edf8349776b051bc             1589 main/binary-amd64/Packages
+ ce37756c00c78494a339332b36ada659              862 main/binary-amd64/Packages.gz
+SHA1:
+ aaf4fcd2b4dd269fa7d13f9290c7debb5a7fb449              175 Release
+ 33024f7df0366919461e480fe228ed3ff84c3d60             1589 main/binary-amd64/Packages
+ a5ad7c40adeffb8c5892a93decc03a31152866ab              862 main/binary-amd64/Packages.gz
+SHA256:
+ 2d3944d1167a0f4bed09c6662492faaf487770fcd55235c120dbe39f4cee6552              175 Release
+ 2b77ecfdb00ebb15736ae7806a825e869c595702269f0fd3e3fb96f243dad48a             1589 main/binary-amd64/Packages
+ 7aa0f3419489162b0eb63314a69b8b2ccc075a37b281330c1228083dfff8cf3f              862 main/binary-amd64/Packages.gz
+SHA512:
+ 1bd61c33dd3da3316907b4d4d9678bf23f4b0b36dccf6d6ebcd132a729c28f61ef84b97e15715812bc3f217c0fe8093abdf5685c9e3a8440b560d36430cc1068              175 Release
+ 184fc737781f718b5a421479d5aeff6e9d60aaf15a90fd400ea56a66eea28366e48b8059629c864c93a6cb652593125d54cdd450edac181827928ee1a8f6aaac             1589 main/binary-amd64/Packages
+ 95b9a361e822850a138edfded34c373eca01bcb06006a308f89024d38ddde374c183d7ecf516390aa08225bb2df16a748fc0c7749d5b1c59976ef237c144effe              862 main/binary-amd64/Packages.gz
