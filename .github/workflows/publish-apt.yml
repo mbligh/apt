@@ -9,6 +9,7 @@ on:
       - 'pypi-packages.txt'
       - 'scripts/build-pypi-debs'
       - 'scripts/publish-archive.sh'
+      - 'scripts/import-mongodb-release.sh'
       - '.github/workflows/publish-apt.yml'
 
 permissions:
@@ -54,6 +55,8 @@ jobs:
           for deb in dist/*.deb; do
             dpkg-deb --info "$deb"
           done
+      - name: Import MongoDB Community release package
+        run: bash scripts/import-mongodb-release.sh
       - name: Import signing key
         env:
           APT_SIGNING_KEY: ${{ secrets.APT_SIGNING_KEY }}
