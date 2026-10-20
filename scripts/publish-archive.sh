@@ -15,7 +15,7 @@ for deb in dist/*.deb; do
   version="$(dpkg-deb -f "$deb" Version)"
   arch="$(dpkg-deb -f "$deb" Architecture)"
   case "$arch" in amd64|all) ;; *) echo "Unsupported architecture: $arch" >&2; exit 1;; esac
-  target="site/pool/main/$filename"
+  # GitHub rejects blobs over 100 MiB. Keep oversized upstream release\n  # assets in GitHub Releases, not in the Git-backed Pages archive.\n  # Do not index them until an APT-compatible binary host is configured.\n  if (( $(stat -c %s "$deb") > 90000000 )); then\n    echo "Skipping oversized package $filename (available in GitHub Releases)"\n    continue\n  fi\n  target="site/pool/main/$filename"
   if [[ -e "$target" ]]; then
     if ! cmp -s "$deb" "$target"; then
       if [[ "$package" == pypi-* ]]; then
