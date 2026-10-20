@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# The apt-repo branch is the durable archive. Pages is a generated deployment.
+# Seed from the last Git-backed archive for older packages. New releases are\n# deployed directly as Pages artifacts, avoiding GitHub Git blob limits.
 mkdir -p site
 if git ls-remote --exit-code --heads origin apt-repo >/dev/null 2>&1; then
   git fetch origin apt-repo
@@ -15,7 +15,7 @@ for deb in dist/*.deb; do
   version="$(dpkg-deb -f "$deb" Version)"
   arch="$(dpkg-deb -f "$deb" Architecture)"
   case "$arch" in amd64|all) ;; *) echo "Unsupported architecture: $arch" >&2; exit 1;; esac
-  # GitHub rejects blobs over 100 MiB. Keep oversized upstream release\n  # assets in GitHub Releases, not in the Git-backed Pages archive.\n  # Do not index them until an APT-compatible binary host is configured.\n  if (( $(stat -c %s "$deb") > 90000000 )); then\n    echo "Skipping oversized package $filename (available in GitHub Releases)"\n    continue\n  fi\n  target="site/pool/main/$filename"
+  target="site/pool/main/$filename"
   if [[ -e "$target" ]]; then
     if ! cmp -s "$deb" "$target"; then
       if [[ "$package" == pypi-* ]]; then
@@ -55,23 +55,4 @@ EOF
 gpg --batch --verify site/dists/trixie/InRelease
 test -s site/dists/trixie/main/binary-amd64/Packages.gz
 
-# Commit the complete static archive to its own branch, independently of main.
-# An orphan branch avoids duplicating the packaging source history.
-git config user.name 'github-actions[bot]'
-git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-tmp="$(mktemp -d)"
-trap 'rm -rf "$tmp"' EXIT
-git -C "$tmp" init -q
-git -C "$tmp" config user.name "github-actions[bot]"
-git -C "$tmp" config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-git -C "$tmp" checkout -q -b apt-repo
-cp -a site/. "$tmp/"
-git -C "$tmp" add -A
-git -C "$tmp" commit -qm "Publish APT archive from ${GITHUB_SHA:-main}"
-git -C "$tmp" remote add origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
-# Do not force-push: concurrent/competing changes must not be silently lost.
-if git ls-remote --exit-code --heads origin apt-repo >/dev/null 2>&1; then
-  git -C "$tmp" fetch -q origin apt-repo:refs/remotes/origin/apt-repo
-  git -C "$tmp" merge -q --allow-unrelated-histories -s ours origin/apt-repo
-fi
-git -C "$tmp" push -q origin HEAD:refs/heads/apt-repo
+# Deploy site/ directly via upload-pages-artifact; do not commit binaries to Git.\necho "Prepared Pages archive: $(du -sh site | cut -f1)"\n
