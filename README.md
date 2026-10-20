@@ -12,7 +12,13 @@ See [project.md](project.md) for design decisions.
 - `yt-dlp-sabr`: bashonly SABR fork, packaged as `2026.08.19.233452-1`, providing `/usr/bin/yt-dlp` and `/etc/yt-dlp.conf`
 
 
-- `mongodb-org-server`: MongoDB Community 9.0.4 amd64, imported unchanged from GitHub release `mongodb-9.0.4` (SHA-256 verified)
+- `mongodb-org-server`: MongoDB 9.0.4 amd64, imported unchanged from release `mongodb-9.0.4` (SHA-256 verified)
+- `mongodb-database-tools`: 100.19.1 amd64 (database import/export and backup tools)
+- `mongodb-atlas-cli`: 1.59.2 amd64 (Atlas administration CLI)
+- `mongodb-compass`: 1.53.0 amd64 (desktop GUI; requires desktop dependencies)
+- `mongodb-mongosh`: 2.13.0 amd64 (interactive shell)
+
+The MongoDB importer requires all five original `.deb` assets in GitHub release `mongodb-9.0.4`, using their exact filenames. Publishing fails rather than silently omitting a missing asset. All SHA-256 hashes are pinned in `scripts/import-mongodb-release.sh`.
 
 ## Initial setup (repository owner)
 
