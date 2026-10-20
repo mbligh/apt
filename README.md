@@ -11,6 +11,9 @@ See [project.md](project.md) for design decisions.
 - `sonarr`: upstream 4.0.20.3014, native systemd service (pending CI verification)
 - `yt-dlp-sabr`: bashonly SABR fork, packaged as `2026.08.19.233452-1`, providing `/usr/bin/yt-dlp` and `/etc/yt-dlp.conf`
 
+
+- `mongodb-org-server`: MongoDB Community 9.0.4 amd64, imported unchanged from GitHub release `mongodb-9.0.4` (SHA-256 verified)
+
 ## Initial setup (repository owner)
 
 1. Create a dedicated, passwordless *repository-only* OpenPGP signing key in an isolated GnuPG home. Keep its private key backed up securely, never in Git.
