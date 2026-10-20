@@ -19,8 +19,10 @@ for deb in dist/*.deb; do
   if [[ -e "$target" ]]; then
     if ! cmp -s "$deb" "$target"; then
       if [[ "$package" == pypi-* ]]; then
-        echo "Refusing to overwrite $package $version with different bytes. Bump Debian revision." >&2
-        exit 1
+        # PyPI wheels may rebuild differently without changing the pinned root
+        # version. Preserve the already-published immutable Debian artifact.
+        echo "Reusing existing $package $version from archive (rebuilt bytes differ)."
+        continue
       fi
       echo "Reusing existing $package $version from archive (rebuilt bytes differ)." >&2
     fi
