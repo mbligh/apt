@@ -18,7 +18,7 @@ if not re.fullmatch(r'sha256:[0-9a-f]{64}', digest):
     raise SystemExit('Release asset lacks a valid SHA-256 digest')
 version = datetime.fromisoformat(r['published_at'].replace('Z', '+00:00')).astimezone(timezone.utc).strftime('%Y.%m.%d.%H%M%S')
 with open(sys.argv[2], 'w') as out:
-    out.write(f"{version}\\n{a['id']}\\n{digest[7:]}\\n")
+    out.write(f"{version}\n{a['id']}\n{digest[7:]}\n")
 PY
 VERSION=$(sed -n '1p' "$tmp/release-info")
 ASSET_ID=$(sed -n '2p' "$tmp/release-info")
