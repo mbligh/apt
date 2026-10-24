@@ -1,9 +1,9 @@
 #!/bin/sh
 set -eu
 cd "$(dirname "$0")/../.."
-VERSION=2026.08.19.233452
+VERSION=2026.10.21.233648
 REVISION=1
-SHA256=8e851af222deaeeced7a9444a3c961fa054dc850e92d400e3ff73110f7bd9f4d
+SHA256=f3c70a7ffa7c81718505810c2c19eb11072758c0952b0bbc38fc838259f853f4
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 curl -fL --retry 3 -o "$tmp/yt-dlp" "https://github.com/bashonly/yt-dlp/releases/download/sabr/yt-dlp"
