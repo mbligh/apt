@@ -1,12 +1,30 @@
 #!/bin/sh
 set -eu
 cd "$(dirname "$0")/../.."
-VERSION=2026.10.21.233648
 REVISION=1
-SHA256=f3c70a7ffa7c81718505810c2c19eb11072758c0952b0bbc38fc838259f853f4
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
-curl -fL --retry 3 -o "$tmp/yt-dlp" "https://github.com/bashonly/yt-dlp/releases/download/sabr/yt-dlp"
+# Resolve the current moving release once, then download its immutable asset IDs.
+# The API supplies both the release timestamp and the asset SHA-256 digest.
+release=$(curl -fsSL --retry 3 https://api.github.com/repos/bashonly/yt-dlp/releases/tags/sabr)
+printf '%s' "$release" > "$tmp/release.json"
+python3 - "$tmp/release.json" "$tmp/release-info" <<'PY'
+import json, re, sys
+from datetime import datetime, timezone
+r = json.load(open(sys.argv[1]))
+a = next(a for a in r['assets'] if a['name'] == 'yt-dlp')
+digest = a.get('digest', '')
+if not re.fullmatch(r'sha256:[0-9a-f]{64}', digest):
+    raise SystemExit('Release asset lacks a valid SHA-256 digest')
+version = datetime.fromisoformat(r['published_at'].replace('Z', '+00:00')).astimezone(timezone.utc).strftime('%Y.%m.%d.%H%M%S')
+with open(sys.argv[2], 'w') as out:
+    out.write(f"{version}\\n{a['id']}\\n{digest[7:]}\\n")
+PY
+VERSION=$(sed -n '1p' "$tmp/release-info")
+ASSET_ID=$(sed -n '2p' "$tmp/release-info")
+SHA256=$(sed -n '3p' "$tmp/release-info")
+curl -fL --retry 3 -H 'Accept: application/octet-stream' -o "$tmp/yt-dlp" \
+  "https://api.github.com/repos/bashonly/yt-dlp/releases/assets/$ASSET_ID"
 echo "$SHA256  $tmp/yt-dlp" | sha256sum -c -
 pkg="$tmp/pkg"
 mkdir -p "$pkg/DEBIAN" "$pkg/usr/bin" "$pkg/etc" "$pkg/usr/share/doc/yt-dlp-sabr"
