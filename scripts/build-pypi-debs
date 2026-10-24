@@ -41,8 +41,12 @@ def metadata(wheel):
         if len(names) != 1:
             raise ValueError(f'Invalid wheel metadata: {wheel}')
         headers = email.message_from_bytes(archive.read(names[0]))
-        if not headers.get_all('Tag') or any(not tag.endswith('-none-any') for tag in headers.get_all('Tag')):
-            raise ValueError(f'Native/platform wheel unsupported: {wheel}')
+        if not headers.get_all('Tag'):
+            raise ValueError(f'Wheel has no compatibility tags: {wheel}')
+        tags = headers.get_all('Tag')
+        if not all(tag.endswith('-none-any') or ('manylinux' in tag and 'x86_64' in tag) for tag in tags):
+            raise ValueError(f'Unsupported wheel platform: {wheel}')
+        return any(not tag.endswith('-none-any') for tag in tags)
 
 
 def build(requirement, canonical, output, python):
@@ -52,10 +56,8 @@ def build(requirement, canonical, output, python):
         wheels.mkdir()
         # Resolve the full tree as platform-independent wheels, never sdists.
         run(python, '-m', 'pip', 'download', '--disable-pip-version-check',
-            '--only-binary=:all:', '--platform', 'any', '--implementation', 'py',
-            '--abi', 'none', '--dest', str(wheels), requirement)
-        for wheel in wheels.glob('*.whl'):
-            metadata(wheel)
+            '--only-binary=:all:', '--dest', str(wheels), requirement)
+        native = any(metadata(wheel) for wheel in wheels.glob('*.whl'))
         payload = root / 'payload'
         lib = payload / 'usr' / 'lib' / ('pypi-' + canonical)
         lib.mkdir(parents=True)
@@ -106,7 +108,7 @@ def build(requirement, canonical, output, python):
             os.utime(entry, (946684800, 946684800), follow_symlinks=False)
         os.utime(payload, (946684800, 946684800))
         output.mkdir(parents=True, exist_ok=True)
-        deb = output / f'pypi-{canonical}_{version}-2_all.deb'
+        deb = output / f'pypi-{canonical}_{version}-2_{"amd64" if native else "all"}.deb'
         run('dpkg-deb', '--build', '--root-owner-group', str(payload), str(deb))
         run('dpkg-deb', '--info', str(deb))
         print(f'BUILT {deb}')
