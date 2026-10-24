@@ -1,3 +1,4 @@
 # One PyPI distribution per line; optionally pin a version.
 # Debian trixie python3-* packages are skipped automatically.
 roombapy-prime==0.7.1
+duckdb
