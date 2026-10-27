@@ -15,11 +15,11 @@ jobs:
   build:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: '3.13'
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: '22'
       - name: Enable pnpm
@@ -43,7 +43,7 @@ jobs:
           test -f /tmp/metube-test/usr/lib/metube/python/aiohttp/__init__.py
           PYTHONPATH="/tmp/metube-test/usr/lib/metube/python" python3 -c 'import aiohttp, socketio, watchfiles, curl_cffi, mutagen'
           test ! -e /tmp/metube-test/usr/lib/metube/venv
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: metube-deb
           path: dist/metube_*.deb
