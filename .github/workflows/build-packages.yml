@@ -17,6 +17,7 @@ jobs:
       - name: Build packages
         run: |
           sh packages/deno/build.sh
+          sh packages/perccli/build.sh
           sh packages/yt-dlp-sabr/build.sh
           sh packages/radarr/build.sh
           sh packages/sonarr/build.sh

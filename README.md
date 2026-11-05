@@ -7,6 +7,7 @@ See [project.md](project.md) for design decisions.
 ## Packages
 
 - `deno`: upstream Deno 2.9.7, packaged as `2.9.7-1`
+- `perccli`: Dell PERC CLI 7.2616.0.0, imported as Dell's original Debian package from its Linux archive (SHA-256 verified). Provides PERC/HBA physical-drive and enclosure management, including locate LEDs. Dell proprietary software; verify distribution rights before public publication.
 - `radarr`: upstream 6.4.4.10685, native systemd service (pending CI verification)
 - `sonarr`: upstream 4.0.20.3014, native systemd service (pending CI verification)
 - `yt-dlp-sabr`: bashonly SABR fork, packaged as `2026.08.19.233452-1`, providing `/usr/bin/yt-dlp` and `/etc/yt-dlp.conf`
@@ -99,3 +100,15 @@ python3.13 -m venv /tmp/pypi-packager
 The packager accepts **only pure-Python wheels throughout the dependency tree**, does not execute upstream installation hooks at package installation time, and installs private libraries in `/usr/lib/pypi-<name>`. It does not automatically create services, package native extensions, install `data_files` outside its private directory, or handle applications that require extra operating-system libraries. Command-name conflicts with other packages are not resolved automatically. Only install packages from publishers you trust: upstream code still executes when launched. Build isolation is not a security sandbox.
 
 **Versioning:** The archive refuses to overwrite an existing Debian version with different bytes. A changed transitive dependency without a changed root package version will cause a publish failure; pinning root versions alone does not lock the dependency tree. A lockfile and automatic Debian revision management are future improvements. The workflow currently rebuilds every listed package on publication rather than only the changed entry.
+
+## Dell PERCCLI
+
+`packages/perccli/build.sh` downloads Dell's official `PERCCLI_7.2616.0_Linux.tar.gz` from [Dell's PDG3H driver download](https://www.dell.com/support/home/en-us/drivers/driversdetails?driverid=pdg3h), checks the vendor-published SHA-256, extracts the original `perccli_*.deb` and copies it unchanged into `dist/`. The build rejects a missing or ambiguous Debian package and validates package name and architecture. No custom wrapper or runtime dependency is introduced. Dell lists the PERC H330 as supported.
+
+```sh
+sudo apt update
+sudo apt install perccli
+sudo /opt/MegaRAID/perccli/perccli64 /c0/eall/sall show
+```
+
+**Redistribution:** PERCCLI is proprietary Dell software. Public redistribution through GitHub Pages requires permission under the applicable Dell license; this repository has not established that permission. Do not enable public publication of this binary without checking those terms.

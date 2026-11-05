@@ -84,3 +84,9 @@ A manifest-driven builder (`pypi-packages.txt`, `scripts/build-pypi-debs`) autom
 
 The publication workflow now includes the manifest and builder as triggers and imports generated debs into the existing signed archive. Validation and publishing are separate workflows; no unverified packages are intentionally deployed. Existing publication limitations remain: transitive dependencies are not locked, updates to a root package without a version bump can collide with archived bytes, command names may conflict, and no automatic service configuration or native-extension builds are attempted. Future work: lockfile with hashes, clean-install smoke tests, dependency metadata checks, command-conflict detection, automated Debian revisions, and optional architecture-specific builds.
 
+
+## Dell PERC controller utility
+
+The `perccli` package imports Dell's own Debian package (7.2616.0.0) unchanged, using a pinned HTTPS archive URL and the SHA-256 published on Dell's driver page. `packages/perccli/build.sh` runs in both the verification and publishing workflows, with no runtime containers or custom service. The target is the R530's PERC H330, primarily to identify drive bays by blinking the locate LED.
+
+Dell's PERCCLI software is proprietary. Redistribution rights for hosting its binary publicly have not been confirmed. Publication should be held until that legal prerequisite is resolved; a local-only build/install does not have the same public redistribution implications.
