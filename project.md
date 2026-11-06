@@ -87,6 +87,6 @@ The publication workflow now includes the manifest and builder as triggers and i
 
 ## Dell PERC controller utility
 
-The `perccli` package imports Dell's own Debian package (7.2616.0.0) unchanged, using a pinned HTTPS archive URL and the SHA-256 published on Dell's driver page. `packages/perccli/build.sh` runs in both the verification and publishing workflows, with no runtime containers or custom service. The target is the R530's PERC H330, primarily to identify drive bays by blinking the locate LED.
+Import the original Dell PERC CLI `perccli_007.1623.0000.0000_all.deb` unchanged from the [`perccli-7.1623` GitHub release](https://github.com/mbligh/apt/releases/tag/perccli-7.1623). The importer pins SHA-256 `e46d955241c932023caf63862cd9dacb2b723b7f944340efb0e5afb6a2681e9d`, obtained from GitHub's uploaded asset digest, and validates the Debian package identity and version. This avoids Dell CDN HTTP 403 responses on GitHub Actions runners. It runs in the build and publish workflows.
 
-Dell's PERCCLI software is proprietary. Redistribution rights for hosting its binary publicly have not been confirmed. Publication should be held until that legal prerequisite is resolved; a local-only build/install does not have the same public redistribution implications.
+PERCCLI is proprietary Dell software. The user uploaded the original package to a public release; the applicable redistribution permission has not been independently verified.

@@ -7,7 +7,7 @@ See [project.md](project.md) for design decisions.
 ## Packages
 
 - `deno`: upstream Deno 2.9.7, packaged as `2.9.7-1`
-- `perccli`: Dell PERC CLI 7.2616.0.0, imported as Dell's original Debian package from its Linux archive (SHA-256 verified). Provides PERC/HBA physical-drive and enclosure management, including locate LEDs. Dell proprietary software; verify distribution rights before public publication.
+- `perccli`: Dell PERC CLI 7.1623.0.0, imported unchanged from GitHub release `perccli-7.1623` (SHA-256 verified). Provides PERC/HBA physical-drive and enclosure management, including locate LEDs. Dell proprietary software; verify distribution rights before public publication.
 - `radarr`: upstream 6.4.4.10685, native systemd service (pending CI verification)
 - `sonarr`: upstream 4.0.20.3014, native systemd service (pending CI verification)
 - `yt-dlp-sabr`: bashonly SABR fork, packaged as `2026.08.19.233452-1`, providing `/usr/bin/yt-dlp` and `/etc/yt-dlp.conf`
@@ -103,7 +103,7 @@ The packager accepts **only pure-Python wheels throughout the dependency tree**,
 
 ## Dell PERCCLI
 
-`packages/perccli/build.sh` downloads Dell's official `PERCCLI_7.2616.0_Linux.tar.gz` from [Dell's PDG3H driver download](https://www.dell.com/support/home/en-us/drivers/driversdetails?driverid=pdg3h), checks the vendor-published SHA-256, extracts the original `perccli_*.deb` and copies it unchanged into `dist/`. The build rejects a missing or ambiguous Debian package and validates package name and architecture. No custom wrapper or runtime dependency is introduced. Dell lists the PERC H330 as supported.
+`packages/perccli/build.sh` imports the [official Dell PERCCLI 7.1623 Debian package](https://github.com/mbligh/apt/releases/tag/perccli-7.1623) uploaded as a release asset. The SHA-256 is pinned to the digest reported by GitHub for the uploaded asset (`e46d955241c932023caf63862cd9dacb2b723b7f944340efb0e5afb6a2681e9d`). The original `.deb` is copied unchanged; the build checks its package name, version and architecture. The resulting executable is normally `/opt/MegaRAID/perccli/perccli64`.
 
 ```sh
 sudo apt update
@@ -111,4 +111,4 @@ sudo apt install perccli
 sudo /opt/MegaRAID/perccli/perccli64 /c0/eall/sall show
 ```
 
-**Redistribution:** PERCCLI is proprietary Dell software. Public redistribution through GitHub Pages requires permission under the applicable Dell license; this repository has not established that permission. Do not enable public publication of this binary without checking those terms.
+**Redistribution:** PERCCLI is proprietary Dell software. Public redistribution through GitHub Releases and Pages requires permission under Dell's applicable license; the repository has not independently verified those rights.
