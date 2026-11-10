@@ -219,7 +219,7 @@ def publish():
         release_dir = site / "dists/trixie"
         release = release_dir / "Release"
         with release.open("w") as out:
-            run("apt-ftparchive", "-c", str(config), "release", str(release_dir), stdout=out)
+            run("apt-ftparchive", "-c", str(config.resolve()), "release", "dists/trixie", cwd=site, stdout=out)
         # apt-ftparchive generates paths relative to cwd: run from site/ below if necessary.
         value = release.read_text()
         value = value.replace("dists/trixie/main/", "main/")
