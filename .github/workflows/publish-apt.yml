@@ -1,16 +1,7 @@
-name: Publish signed APT repository
+name: Legacy Pages APT publisher (manual fallback)
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - 'packages/**'
-      - 'pypi-packages.txt'
-      - 'scripts/build-pypi-debs'
-      - 'scripts/publish-archive.sh'
-      - 'scripts/import-mongodb-release.sh'
-      - '.github/workflows/publish-apt.yml'
 
 permissions:
   contents: write
