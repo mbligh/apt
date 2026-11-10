@@ -91,6 +91,10 @@ Import the original Dell PERC CLI `perccli_007.1623.0000.0000_all.deb` unchanged
 
 PERCCLI is proprietary Dell software. The user uploaded the original package to a public release; the applicable redistribution permission has not been independently verified.
 
-## Desktop Commander
+## Node.js 24 and Desktop Commander
 
-A native `desktop-commander` Debian package is built from upstream npm release 0.3.1 in GitHub Actions. Build-time npm resolves and bundles the application and dependencies into `/usr/lib/desktop-commander`; the installed command runs through Node.js without npm/npx. This is a user-invoked remote agent, not an automatically enabled privileged service. The current packaging is amd64, requires Node.js >= 22.12, and has not yet passed CI or a Debian 13 installation smoke test. Transitive npm dependencies need a committed lockfile for reproducible rebuilds; the package version must be incremented when they change.
+Build `nodejs24` as a parallel amd64-only, pinned, SHA-256-verified Node.js 24.22.2 LTS runtime from the official Linux release. Install just the Node binary under `/usr/lib/nodejs24/bin/node`, exposing `/usr/bin/node24`, without replacing the distribution's `/usr/bin/node` and without shipping npm or npx. Packaging version `24.22.2-1`. Updating this runtime requires a new upstream version and verified SHA-256.
+
+Build `desktop-commander` 0.3.1-2 from upstream `@wonderwhy-er/desktop-commander` in CI, using npm only at build time. Bundle its runtime dependencies and invoke `/usr/bin/node24` directly; depend on `nodejs24 (>= 24.22.2)`. Keep its remote agent opt-in per user: no automatic system-level startup, root execution, or remote access until the user starts and pairs it. The vendor's remote relay processes command and result traffic; give the agent account limited privileges.
+
+Both packages are included in the existing build and signed-APT-publish workflows. CI checks SHA-256, installs both packages on Ubuntu 24.04 runners, verifies `node24 --version` and syntactic validity of the Desktop Commander entrypoint. A Debian 13 end-to-end pairing test has not been performed. Desktop Commander transitive npm dependencies are still resolved on CI builds (no checked-in lockfile); this must be addressed before claiming reproducible output. The publishing pipeline rejects overwriting an existing Debian version with different bytes, so dependency changes require a package revision bump.
