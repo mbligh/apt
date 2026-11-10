@@ -35,9 +35,6 @@ jobs:
           done
           sudo apt-get update
           sudo apt-get install -y dpkg-dev apt-utils gnupg unzip curl
-          curl -fsSL --retry 3 https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip -o /tmp/awscliv2.zip
-          unzip -q /tmp/awscliv2.zip -d /tmp
-          sudo /tmp/aws/install
           aws --version
           python3 --version
       - uses: actions/setup-node@v4
