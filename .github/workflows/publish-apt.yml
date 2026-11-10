@@ -51,13 +51,22 @@ jobs:
       - name: Build packages
         run: |
           set -eu
-          for script in packages/deno/build.sh packages/perccli/build.sh packages/yt-dlp-sabr/build.sh packages/desktop-commander/build.sh; do
+          for script in packages/deno/build.sh packages/perccli/build.sh packages/yt-dlp-sabr/build.sh packages/nodejs24/build.sh packages/desktop-commander/build.sh; do
             sh "$script"
           done
           /tmp/pypi-packager/bin/python scripts/build-pypi-debs --debian-packages /tmp/debian-trixie-Packages.xz
           for deb in dist/*.deb; do
             dpkg-deb --info "$deb"
           done
+      - name: Smoke-test Node.js 24 package and Desktop Commander entrypoint
+        run: |
+          set -eu
+          sudo apt-get install -y ./dist/nodejs24_*.deb ./dist/desktop-commander_*.deb
+          test "$(node24 --version)" = v24.22.2
+          node24 --check /usr/lib/desktop-commander/node_modules/@wonderwhy-er/desktop-commander/dist/index.js
+          test "$(readlink -f /usr/bin/node24)" = /usr/lib/nodejs24/bin/node
+          dpkg-query -W -f='${Depends}\n' desktop-commander | grep -F 'nodejs24'
+          echo "Desktop Commander installed; system node remains independent."
       - name: Import MongoDB Community release package
         run: bash scripts/import-mongodb-release.sh
       - name: Import signing key
