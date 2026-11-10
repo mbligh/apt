@@ -37,7 +37,7 @@ jobs:
       - name: Install archive tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y dpkg-dev apt-utils gnupg unzip curl
+          sudo apt-get install -y dpkg-dev apt-utils gnupg unzip curl nodejs npm
       - uses: actions/setup-python@v6
         with:
           python-version: '3.13'
@@ -48,7 +48,7 @@ jobs:
       - name: Build packages
         run: |
           set -eu
-          for script in packages/deno/build.sh packages/perccli/build.sh packages/yt-dlp-sabr/build.sh; do
+          for script in packages/deno/build.sh packages/perccli/build.sh packages/yt-dlp-sabr/build.sh packages/desktop-commander/build.sh; do
             sh "$script"
           done
           /tmp/pypi-packager/bin/python scripts/build-pypi-debs --debian-packages /tmp/debian-trixie-Packages.xz
