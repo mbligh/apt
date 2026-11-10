@@ -9,6 +9,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: apt-r2-publish
@@ -73,7 +74,14 @@ jobs:
             /tmp/pypi-packager/bin/python scripts/build-pypi-debs --debian-packages /tmp/debian-trixie-Packages.xz
           fi
       - name: Import existing Pages archive on first publication
-        run: python3 scripts/r2-publish bootstrap
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/legacy-pages/site
+          gh run download 42872455165 --repo mbligh/apt --name github-pages --dir /tmp/legacy-pages
+          tar -xf /tmp/legacy-pages/artifact.tar -C /tmp/legacy-pages/site
+          APT_MIGRATION_DIR=/tmp/legacy-pages/site python3 scripts/r2-publish bootstrap
       - name: Publish packages and APT indexes
         run: |
           set -euo pipefail
