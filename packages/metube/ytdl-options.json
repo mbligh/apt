@@ -1,7 +1,0 @@
-{
-  "format": "bv+ba/b",
-  "format_sort": ["res:1080", "+vcodec:avc"],
-  "merge_output_format": "mkv",
-  "restrictfilenames": true,
-  "remote_components": ["ejs:npm"]
-}

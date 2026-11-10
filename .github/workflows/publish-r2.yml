@@ -1,0 +1,75 @@
+name: Publish APT repository to Cloudflare R2
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: apt-r2-publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    environment: github-pages
+    env:
+      R2_BUCKET: mbligh-apt
+      R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      AWS_DEFAULT_REGION: auto
+      APT_SIGNING_KEY: ${{ secrets.APT_SIGNING_KEY }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: Validate configuration and install tools
+        run: |
+          set -euo pipefail
+          for value in R2_ACCOUNT_ID AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY APT_SIGNING_KEY; do
+            test -n "${!value}" || { echo "::error::Missing secret: $value"; exit 1; }
+          done
+          sudo apt-get update
+          sudo apt-get install -y awscli dpkg-dev apt-utils gnupg unzip curl
+          python3 --version
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - name: Read published build manifest
+        run: |
+          set -euo pipefail
+          echo "R2_ENDPOINT=https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com" >> "$GITHUB_ENV"
+          python3 scripts/r2-publish plan
+      - name: Fetch Debian index only if PyPI packages need rebuilding
+        run: |
+          if test -e /tmp/r2-build-pypi; then
+            curl -fLsS --retry 3 https://deb.debian.org/debian/dists/trixie/main/binary-amd64/Packages.xz -o /tmp/debian-trixie-Packages.xz
+          fi
+      - name: Build changed packages
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          while read -r name; do
+            test -n "$name" || continue
+            echo "Building $name"
+            sh "packages/$name/build.sh"
+          done < /tmp/r2-build-packages
+          if test -e /tmp/r2-build-pypi; then
+            python -m venv /tmp/pypi-packager
+            /tmp/pypi-packager/bin/pip install 'pip>=24,<27'
+            /tmp/pypi-packager/bin/python scripts/build-pypi-debs --debian-packages /tmp/debian-trixie-Packages.xz
+          fi
+      - name: Import existing Pages archive on first publication
+        run: python3 scripts/r2-publish bootstrap
+      - name: Publish packages and APT indexes
+        run: |
+          set -euo pipefail
+          mkdir -p -m 700 "$HOME/.gnupg"
+          printf '%s\n' "$APT_SIGNING_KEY" | gpg --batch --import
+          fingerprint="$(gpg --batch --with-colons --list-secret-keys | awk -F: '$1=="fpr" { print $10; exit }')"
+          test -n "$fingerprint"
+          export SIGNING_FINGERPRINT="$fingerprint"
+          python3 scripts/r2-publish publish

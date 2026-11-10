@@ -1,0 +1,252 @@
+#!/usr/bin/env python3
+"""Publish immutable Debian packages and by-hash APT indexes to Cloudflare R2.
+
+The manifest is a *successful publication* record, not a build cache. Package
+objects and by-hash indexes are uploaded before InRelease is replaced.
+"""
+import gzip
+import hashlib
+import json
+import os
+from pathlib import Path
+import re
+import subprocess
+import sys
+import tempfile
+import urllib.request
+
+BUCKET = os.environ.get("R2_BUCKET", "mbligh-apt")
+ENDPOINT = os.environ.get("R2_ENDPOINT") or (
+    "https://" + os.environ.get("R2_ACCOUNT_ID", "") + ".r2.cloudflarestorage.com")
+SOURCE = os.environ.get("APT_MIGRATION_URL", "https://apt.mbligh.org").rstrip("/")
+DIST = Path("dist")
+STATE = "publish-state.json"
+INDEX = "dists/trixie/main/binary-amd64/Packages"
+
+
+def run(*args, **kwargs):
+    return subprocess.run(args, check=True, **kwargs)
+
+
+def aws(*args, check=True, capture=False):
+    return subprocess.run(["aws", "--endpoint-url", ENDPOINT, *args],
+                          check=check, capture_output=capture, text=True)
+
+
+def get(key, dest):
+    dest = Path(dest)
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    result = aws("s3api", "get-object", "--bucket", BUCKET, "--key", key,
+                 str(dest), check=False, capture=True)
+    if result.returncode:
+        if "NoSuchKey" in result.stderr or "404" in result.stderr or "Not Found" in result.stderr:
+            return False
+        raise RuntimeError(result.stderr)
+    return True
+
+
+def put(path, key, *, cache=None, immutable=False):
+    cmd = ["s3api", "put-object", "--bucket", BUCKET, "--key", key,
+           "--body", str(path)]
+    if cache:
+        cmd += ["--cache-control", cache]
+    if immutable:
+        cmd += ["--if-none-match", "*"]
+    result = aws(*cmd, check=False, capture=True)
+    if result.returncode:
+        if immutable and ("PreconditionFailed" in result.stderr or "412" in result.stderr):
+            # Never overwrite existing immutable objects. Caller checks hashes
+            # against the published index for packages.
+            return False
+        raise RuntimeError(result.stderr)
+    return True
+
+
+def digest(path):
+    h = hashlib.sha256()
+    with open(path, "rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def source_hash(paths):
+    h = hashlib.sha256()
+    for path in sorted(set(paths)):
+        p = Path(path)
+        if not p.is_file():
+            continue
+        h.update(str(p).encode() + b"\0")
+        h.update(p.read_bytes())
+    return h.hexdigest()
+
+
+def packages():
+    return sorted(p.parent.name for p in Path("packages").glob("*/build.sh"))
+
+
+def fingerprints():
+    hashes = {}
+    for pkg in packages():
+        files = [str(p) for p in Path("packages", pkg).rglob("*") if p.is_file()]
+        hashes[pkg] = source_hash(files)
+    pypi_files = ["pypi-packages.txt", "scripts/build-pypi-debs"]
+    hashes["__pypi__"] = source_hash(pypi_files)
+    return hashes
+
+
+def read_state():
+    with tempfile.TemporaryDirectory() as d:
+        p = Path(d) / "state.json"
+        if not get(STATE, p):
+            return None
+        return json.loads(p.read_text())
+
+
+def plan():
+    state = read_state()
+    current = fingerprints()
+    previous = (state or {}).get("fingerprints", {})
+    changed = [p for p in packages() if current[p] != previous.get(p)]
+    Path("/tmp/r2-build-packages").write_text("".join(p + "\n" for p in changed))
+    if current["__pypi__"] != previous.get("__pypi__"):
+        Path("/tmp/r2-build-pypi").touch()
+    print("Changed package builds:", changed)
+    print("PyPI rebuild:", Path("/tmp/r2-build-pypi").exists())
+    print("Initial R2 publication:", state is None)
+
+
+def stanzas(contents):
+    for item in contents.decode().split("\n\n"):
+        item = item.strip()
+        if item:
+            fields = {}
+            for line in item.splitlines():
+                if line and not line[0].isspace() and ": " in line:
+                    k, v = line.split(": ", 1)
+                    fields[k] = v
+            if "Filename" in fields:
+                yield fields, item
+
+
+def download_source(path):
+    with urllib.request.urlopen(SOURCE + "/" + path, timeout=120) as response:
+        return response.read()
+
+
+def bootstrap():
+    if read_state() is not None:
+        print("R2 publication already initialized; no migration needed")
+        return
+    # On the first publication migrate the current Pages archive, including
+    # package versions no longer built by the current scripts.
+    print("Migrating existing Pages archive from", SOURCE)
+    data = gzip.decompress(download_source(INDEX + ".gz"))
+    entries = list(stanzas(data))
+    if not entries:
+        raise RuntimeError("Source Pages repository has no package entries")
+    DIST.mkdir(exist_ok=True)
+    for fields, _ in entries:
+        name = Path(fields["Filename"]).name
+        dest = DIST / name
+        if not dest.exists():
+            dest.write_bytes(download_source(fields["Filename"]))
+        if digest(dest) != fields["SHA256"]:
+            raise RuntimeError("Bootstrap checksum mismatch: " + name)
+    print("Verified", len(entries), "historical packages")
+
+
+def deb_stanza(deb):
+    metadata = run("dpkg-deb", "-f", str(deb), capture_output=True, text=True).stdout.strip()
+    filename = "pool/main/" + deb.name
+    return {"Filename": filename, "SHA256": digest(deb)}, (
+        metadata + "\nFilename: " + filename +
+        "\nSize: " + str(deb.stat().st_size) +
+        "\nSHA256: " + digest(deb))
+
+
+def publish():
+    with tempfile.TemporaryDirectory() as d:
+        temp = Path(d)
+        old_index = temp / "old-Packages"
+        old = {}
+        if get(INDEX, old_index):
+            for fields, entry in stanzas(old_index.read_bytes()):
+                old[fields["Filename"]] = (fields, entry)
+        elif read_state() is not None:
+            raise RuntimeError("R2 manifest exists but Packages index is absent")
+
+        entries = dict(old)
+        DIST.mkdir(exist_ok=True)
+        for deb in sorted(DIST.glob("*.deb")):
+            fields, entry = deb_stanza(deb)
+            key = fields["Filename"]
+            if key in entries and entries[key][0]["SHA256"] != fields["SHA256"]:
+                raise RuntimeError("Refusing to overwrite published package: " + key)
+            if key not in old:
+                # Put before making it visible in the signed index.
+                if not put(deb, key, immutable=True):
+                    raise RuntimeError("Package object already exists but is not indexed: " + key)
+            entries[key] = fields, entry
+
+        if not entries:
+            raise RuntimeError("Refusing to publish empty APT repository")
+        site = temp / "site"
+        binary = site / "dists/trixie/main/binary-amd64"
+        binary.mkdir(parents=True)
+        index = binary / "Packages"
+        index.write_text("".join(e + "\n\n" for _, e in (
+            entries[key] for key in sorted(entries))))
+        gz = binary / "Packages.gz"
+        with gz.open("wb") as raw:
+            with gzip.GzipFile(filename="", mode="wb", fileobj=raw, mtime=0, compresslevel=9) as output:
+                output.write(index.read_bytes())
+
+        # Immutable indexes are uploaded before any mutable metadata.
+        for path in (index, gz):
+            key = ("dists/trixie/main/binary-amd64/by-hash/SHA256/" + digest(path))
+            put(path, key, immutable=True, cache="public, max-age=31536000, immutable")
+
+        config = temp / "release.conf"
+        config.write_text(
+            'APT::FTPArchive::Release::Origin "mbligh";\n'
+            'APT::FTPArchive::Release::Label "mbligh";\n'
+            'APT::FTPArchive::Release::Suite "trixie";\n'
+            'APT::FTPArchive::Release::Codename "trixie";\n'
+            'APT::FTPArchive::Release::Architectures "amd64";\n'
+            'APT::FTPArchive::Release::Components "main";\n'
+            'APT::FTPArchive::Release::Acquire-By-Hash "yes";\n')
+        release_dir = site / "dists/trixie"
+        release = release_dir / "Release"
+        with release.open("w") as out:
+            run("apt-ftparchive", "-c", str(config), "release", str(release_dir), stdout=out)
+        # apt-ftparchive generates paths relative to cwd: run from site/ below if necessary.
+        value = release.read_text()
+        value = value.replace("dists/trixie/main/", "main/")
+        if "Acquire-By-Hash: yes" not in value:
+            value += "Acquire-By-Hash: yes\n"
+        release.write_text(value)
+        fingerprint = os.environ["SIGNING_FINGERPRINT"]
+        inrelease = release_dir / "InRelease"
+        sig = release_dir / "Release.gpg"
+        run("gpg", "--batch", "--yes", "--local-user", fingerprint,
+            "--clearsign", "-o", str(inrelease), str(release))
+        run("gpg", "--batch", "--yes", "--local-user", fingerprint,
+            "--detach-sign", "-o", str(sig), str(release))
+        public = site / "mbligh-archive-keyring.gpg"
+        with public.open("wb") as f:
+            run("gpg", "--batch", "--export", fingerprint, stdout=f)
+
+        # Publish indexes, then mutable Release metadata; InRelease is the commit point.
+        for p in (index, gz, public, release, sig, inrelease):
+            key = str(p.relative_to(site))
+            put(p, key, cache="no-cache, must-revalidate")
+        # Store build fingerprints only *after* the published index is available.
+        state = temp / STATE
+        state.write_text(json.dumps({"fingerprints": fingerprints()}, indent=2) + "\n")
+        put(state, STATE, cache="no-store")
+        print("Published", len(entries), "package files to R2")
+
+
+if __name__ == "__main__":
+    {"plan": plan, "bootstrap": bootstrap, "publish": publish}[sys.argv[1]]()
