@@ -130,6 +130,9 @@ def stanzas(contents):
 
 
 def download_source(path):
+    local = os.environ.get("APT_MIGRATION_DIR")
+    if local:
+        return (Path(local) / path).read_bytes()
     with urllib.request.urlopen(SOURCE + "/" + path, timeout=120) as response:
         return response.read()
 
@@ -149,7 +152,7 @@ def bootstrap():
     for fields, _ in entries:
         name = Path(fields["Filename"]).name
         dest = DIST / name
-        if not dest.exists():
+        if not dest.exists() or digest(dest) != fields["SHA256"]:
             dest.write_bytes(download_source(fields["Filename"]))
         if digest(dest) != fields["SHA256"]:
             raise RuntimeError("Bootstrap checksum mismatch: " + name)
