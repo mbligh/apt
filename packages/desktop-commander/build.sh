@@ -4,7 +4,7 @@ cd "$(dirname "$0")/../.."
 
 VERSION=0.3.1
 REVISION=1
-ARCH=all
+ARCH=amd64
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 
