@@ -7,6 +7,8 @@ See [project.md](project.md) for design decisions.
 ## Packages
 
 - `deno`: upstream Deno 2.9.7, packaged as `2.9.7-1`
+- `nodejs24`: upstream Node.js 24.22.2 LTS runtime, parallel install as `/usr/bin/node24` (no npm; does not replace Debian's Node.js)
+- `desktop-commander`: Remote Desktop Commander 0.3.1, packaged as `0.3.1-2` with a dependency on `nodejs24`
 - `perccli`: Dell PERC CLI 7.1623.0.0, imported unchanged from GitHub release `perccli-7.1623` (SHA-256 verified). Provides PERC/HBA physical-drive and enclosure management, including locate LEDs. Dell proprietary software; verify distribution rights before public publication.
 - `radarr`: upstream 6.4.4.10685, native systemd service (pending CI verification)
 - `sonarr`: upstream 4.0.20.3014, native systemd service (pending CI verification)
@@ -113,17 +115,20 @@ sudo /opt/MegaRAID/perccli/perccli64 /c0/eall/sall show
 
 **Redistribution:** PERCCLI is proprietary Dell software. Public redistribution through GitHub Releases and Pages requires permission under Dell's applicable license; the repository has not independently verified those rights.
 
-## Desktop Commander Remote MCP
+## Node.js 24 and Desktop Commander Remote MCP
 
-`desktop-commander` packages upstream `@wonderwhy-er/desktop-commander` version 0.3.1 for Debian 13 amd64. npm runs **only in GitHub Actions**; the package includes its resolved JavaScript dependencies and needs Node.js >= 22.12 at runtime (no npm or npx). Node.js 24 is used during packaging.
+`nodejs24` contains only the SHA-256-verified upstream Node.js 24.22.2 executable and license, installed at `/usr/lib/nodejs24/bin/node`, with `/usr/bin/node24` as its command. Debian's `/usr/bin/node` and system `nodejs` package are untouched. This package intentionally includes **no** npm or npx. It is currently amd64 only.
+
+`desktop-commander` packages upstream `@wonderwhy-er/desktop-commander` version 0.3.1 as Debian version `0.3.1-2`. It depends on `nodejs24 (>= 24.22.2)`, so ordinary APT dependency resolution brings in the runtime. npm is used **only by the GitHub Actions build**, to bundle upstream dependencies; there are no npm commands at runtime or package installation.
 
 ```sh
 sudo apt update
 sudo apt install desktop-commander
-# Run as an unprivileged user; follow the displayed device-pairing instructions:
+node24 --version           # v24.22.2
+# Start and pair the remote agent as an ordinary, unprivileged user:
 desktop-commander remote
 ```
 
-The agent is deliberately **not** enabled as a root or system-wide service. Start it as the account whose permissions it should have. Remote access is mediated by the upstream Desktop Commander cloud service. Stop the process to disconnect it.
+The agent is **not** enabled automatically as a privileged system service; it only runs when started. Pair it using upstream Desktop Commander instructions and stop it to disconnect. Remote execution passes through the vendor's cloud service, so give the user account only the permissions it needs.
 
-Packaging is version-pinned at the top level, but transitive npm dependencies are currently resolved during each CI build; a checked-in lockfile and clean-install tests are still needed for fully reproducible releases. Node.js >= 22.12 must be available from an APT source on the target machine; Debian 13's default Node.js may be too old. Build and publish have not yet been verified.
+`packages/nodejs24/build.sh` checks the official release SHA-256 `48cc0e21e048790e54c0cf5749c2725005313d652651c40b7a21feb9697aaf75`. CI builds both .debs, installs them and checks the selected Node version and Desktop Commander entrypoint syntax before publication. This is not a full remote pairing/integration test. Desktop Commander transitive npm dependencies are still resolved afresh in CI; a checked-in lockfile remains necessary for full reproducibility. Package publication is dependent on the existing signed archive workflow succeeding.
