@@ -24,6 +24,7 @@ jobs:
           sh packages/yt-dlp-sabr/build.sh
           sh packages/nodejs24/build.sh
           sh packages/desktop-commander/build.sh
+          sh packages/imapsync/build.sh
           sh packages/radarr/build.sh
           sh packages/sonarr/build.sh
       - name: Inspect packages
