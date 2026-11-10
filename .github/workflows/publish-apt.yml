@@ -1,0 +1,95 @@
+name: Publish signed APT repository
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'packages/**'
+      - 'pypi-packages.txt'
+      - 'scripts/build-pypi-debs'
+      - 'scripts/publish-archive.sh'
+      - 'scripts/import-mongodb-release.sh'
+      - '.github/workflows/publish-apt.yml'
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: apt-pages
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: true
+          fetch-depth: 0
+      - name: Fetch Debian 13 package index
+        run: curl --fail --location --retry 3 https://deb.debian.org/debian/dists/trixie/main/binary-amd64/Packages.xz -o /tmp/debian-trixie-Packages.xz
+      - name: Install archive tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y dpkg-dev apt-utils gnupg unzip curl nodejs npm
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - name: Prepare PyPI packaging environment
+        run: |
+          python -m venv /tmp/pypi-packager
+          /tmp/pypi-packager/bin/pip install 'pip>=24,<27'
+      - name: Build packages
+        run: |
+          set -eu
+          for script in packages/deno/build.sh packages/perccli/build.sh packages/yt-dlp-sabr/build.sh packages/nodejs24/build.sh packages/desktop-commander/build.sh packages/imapsync/build.sh; do
+            sh "$script"
+          done
+          /tmp/pypi-packager/bin/python scripts/build-pypi-debs --debian-packages /tmp/debian-trixie-Packages.xz
+          for deb in dist/*.deb; do
+            dpkg-deb --info "$deb"
+          done
+      - name: Smoke-test Node.js 24 package and Desktop Commander entrypoint
+        run: |
+          set -eu
+          sudo apt-get install -y ./dist/nodejs24_*.deb ./dist/desktop-commander_*.deb
+          test "$(node24 --version)" = v24.22.2
+          node24 --check /usr/lib/desktop-commander/node_modules/@wonderwhy-er/desktop-commander/dist/index.js
+          timeout 20s desktop-commander remote --help >/tmp/desktop-commander-help.txt
+          test -s /tmp/desktop-commander-help.txt
+          test "$(readlink -f /usr/bin/node24)" = /usr/lib/nodejs24/bin/node
+          dpkg-query -W -f='${Depends}\n' desktop-commander | grep -F 'nodejs24'
+          echo "Desktop Commander installed; system node remains independent."
+      - name: Import MongoDB Community release package
+        run: bash scripts/import-mongodb-release.sh
+      - name: Import signing key
+        env:
+          APT_SIGNING_KEY: ${{ secrets.APT_SIGNING_KEY }}
+        run: |
+          set -eu
+          test -n "$APT_SIGNING_KEY" || { echo 'Missing APT_SIGNING_KEY secret' >&2; exit 1; }
+          mkdir -p -m 700 "$HOME/.gnupg"
+          printf '%s\n' "$APT_SIGNING_KEY" | gpg --batch --import
+          fingerprint="$(gpg --batch --with-colons --list-secret-keys | awk -F: '$1=="fpr" { print $10; exit }')"
+          test -n "$fingerprint"
+          echo "SIGNING_FINGERPRINT=$fingerprint" >> "$GITHUB_ENV"
+      - name: Build persistent archive and push archive branch
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: bash scripts/publish-archive.sh
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - name: Deploy Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

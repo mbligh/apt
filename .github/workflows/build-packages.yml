@@ -1,0 +1,48 @@
+name: Build Debian packages
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'packages/**'
+      - '.github/workflows/build-packages.yml'
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install build tools
+        run: sudo apt-get update && sudo apt-get install -y unzip dpkg-dev curl
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Build packages
+        run: |
+          sh packages/deno/build.sh
+          sh packages/perccli/build.sh
+          sh packages/yt-dlp-sabr/build.sh
+          sh packages/nodejs24/build.sh
+          sh packages/desktop-commander/build.sh
+          sh packages/imapsync/build.sh
+          sh packages/radarr/build.sh
+          sh packages/sonarr/build.sh
+      - name: Inspect packages
+        run: |
+          for f in dist/*.deb; do
+            dpkg-deb --info "$f"
+            dpkg-deb --contents "$f"
+          done
+      - name: Test Desktop Commander installation with separate Node 24
+        run: |
+          sudo apt-get install -y ./dist/nodejs24_*.deb ./dist/desktop-commander_*.deb
+          test "$(node24 --version)" = v24.22.2
+          node24 --check /usr/lib/desktop-commander/node_modules/@wonderwhy-er/desktop-commander/dist/index.js
+          timeout 20s desktop-commander remote --help >/tmp/desktop-commander-help.txt
+          test -s /tmp/desktop-commander-help.txt
+          dpkg-query -W -f='${Depends}\n' desktop-commander | grep -F nodejs24
+      - name: Upload deb files
+        uses: actions/upload-artifact@v6
+        with:
+          name: debian-packages
+          path: dist/*.deb

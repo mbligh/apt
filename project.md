@@ -1,13 +1,109 @@
-# mbligh/apt
+# mbligh apt repository — project outline
 
-Build and publish a signed Debian 13 (trixie) APT repository at apt.mbligh.org.
+## Purpose and operating principles
 
-## Publishing design
+Host a small, signed Debian APT repository for software maintained or repackaged by mbligh. Keep the *runtime* operational interface conventional: dpkg/apt own installation and upgrades, systemd owns service lifecycle, journald handles logs, and normal host process/network tools remain useful. Avoid Docker, VMs and bespoke application updaters unless there is a concrete dependency or isolation reason.
 
-The existing GitHub Pages publisher remains available during migration. The new manual `publish-r2.yml` workflow writes to the Cloudflare R2 bucket `mbligh-apt` using repository secrets `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, and the existing `APT_SIGNING_KEY`. The first publish migrates packages from the existing Pages endpoint (including historical versions). The domain should only be switched after verification.
+This repository is the **distribution/publishing repository**, not the source repository for each application. Application source and packaging definitions stay with their projects; build pipelines produce versioned .deb artifacts, then publish them here. Initially target Debian 13 (trixie), amd64 and architecture-independent packages; add architectures/suites only when needed.
 
-A successful-publication fingerprint manifest in R2 controls which package definitions are rebuilt. Each new `.deb` is immutable at `pool/main/`. The publication index retains old versions, publishes SHA256 by-hash indexes, then signs and uploads `InRelease` last. Publication state updates last. Existing source builds and the optional PyPI pipeline are reused. After the R2 endpoint is confirmed operational, change the primary publisher from Pages to R2.
+## Public repository layout and publication
 
-## Operations
+Publish a static APT archive from GitHub Pages, ultimately at `https://apt.mbligh.org` (DNS and Pages configuration still to be done). Use conventional `dists/trixie/main/binary-amd64/Packages{,.gz}` and `pool/main/` paths, plus `InRelease` and `Release.gpg` metadata. A `.nojekyll` file should be present in the published root. Prefer `reprepro` for archive management, with `apt-ftparchive` as an alternative if needed.
 
-Run `Publish APT repository to Cloudflare R2` manually to initialize R2. Verify the `dists/trixie/InRelease`, `Packages.gz`, and package downloads on the bucket's public test hostname before connecting `apt.mbligh.org`. Keep Pages enabled until then. Avoid running two R2 publishers concurrently.
+GitHub Actions should validate packages, import them into the archive, sign release metadata, and deploy the static tree to Pages. Stage and validate the complete archive before deployment; avoid publishing an index that references packages not yet available. Keep enough previous versions for rollback, while monitoring GitHub Pages storage/bandwidth limits. GitHub Pages is public, so **do not put private packages or secrets in the published archive**.
+
+Use a dedicated APT archive signing key/subkey. Store the signing private key as a restricted CI secret (or move signing to a separately controlled publisher if warranted), publish the public key/keyring and its independently verified fingerprint, and document rotation/recovery. Never use `trusted=yes` or disable signature checks.
+
+## Client configuration
+
+Install the verified archive public key at `/usr/share/keyrings/mbligh-archive-keyring.gpg` (eventually via a small keyring package). Example `/etc/apt/sources.list.d/mbligh.sources`:
+
+```deb822
+Types: deb
+URIs: https://apt.mbligh.org
+Suites: trixie
+Components: main
+Signed-By: /usr/share/keyrings/mbligh-archive-keyring.gpg
+```
+
+Then `apt update`, `apt install <package>`, and ordinary upgrades. The domain, keyring, and repository do not exist as working services until deployed; the example is a target configuration, not an instruction to run immediately. Consider APT pinning if package names could overlap Debian's official packages.
+
+## apt-cacher-ng: planned local shared cache
+
+Plan to run `apt-cacher-ng` on **slagg**, listening on TCP port 3142, accessible only from trusted LAN clients. It is an **on-demand caching proxy**, not a complete offline Debian mirror. It caches requested packages and indexes; it does not guarantee that an uncached package is available offline. Keep the cache on persistent storage, monitor usage and cleanup, and do not expose it to the internet.
+
+Initial setup on slagg:
+
+```sh
+sudo apt install apt-cacher-ng
+sudo systemctl enable --now apt-cacher-ng
+```
+
+For clients using HTTP Debian mirrors, create `/etc/apt/apt.conf.d/02proxy`:
+
+```aptconf
+Acquire::http::Proxy "http://slagg:3142";
+```
+
+For standard Debian repositories, **HTTP is acceptable** when APT verifies signed Release metadata and package hashes. Switching Debian `URIs` from `https://deb.debian.org/debian` to `http://deb.debian.org/debian` (and likewise the security archive) makes conventional apt-cacher-ng caching straightforward. This is optional: HTTPS can be retained if transport confidentiality is desired, but ordinary CONNECT tunneling does **not** cache the encrypted payload. Avoid changing non-Debian sources indiscriminately.
+
+For the custom GitHub Pages repository, **retain HTTPS on the client by default**. GitHub Pages serves HTTPS; simply changing its URL to HTTP does not make caching work. The default proxy setup above only intercepts HTTP, so the custom repository will initially be fetched directly over HTTPS. If bandwidth warrants it, configure and test an explicit apt-cacher-ng HTTPS backend/remapping arrangement (or an alternative local mirror) for the custom archive, ensuring Release signatures are still checked. Do not assume arbitrary HTTPS URLs are transparently cacheable.
+
+A more complete mirror (e.g. `debmirror`) remains a future option if offline upgrades or complete local package availability become important.
+
+## Debian package build conventions
+
+Prefer upstream Debian packages when available. For our own software and justified third-party repackaging, build real .deb packages using standard Debian tooling (`dpkg-buildpackage`, `debhelper`, `dh`, optionally `sbuild` for clean builds), not hand-crafted install scripts or container-dependent runtime wrappers.
+
+Conventions:
+- Packaging files under `debian/` in the application's own source repo; standard `control`, `rules`, `changelog`, copyright and install files as appropriate.
+- Debian-compatible versions, correct `Architecture: all` versus `amd64`, declared `Depends`, and repeatable CI builds.
+- Files in conventional locations: binaries under `/usr/bin` or `/usr/lib/<package>`, configuration under `/etc`, state under `/var/lib/<package>`; no application writes into `/usr`.
+- Native systemd unit files, logging to journald, and package-safe upgrades; use Debian maintainer-script helpers rather than manually manipulating services unnecessarily.
+- Prefer Debian-provided dependencies. If Python dependencies cannot be packaged reasonably, a *private*, self-contained environment under `/usr/lib/<package>` is an explicit documented exception, not a second runtime administration model. Never let package installation run `pip install` against the system Python or download unpinned dependencies.
+- No mandatory Docker at runtime or for routine service management. Build isolation (including clean chroots) is acceptable when useful.
+- Validate with `lintian` and clean install/upgrade/remove tests before publishing; do not overwrite an existing package version with different bytes.
+- If a third-party app is repackaged, record its upstream version, source, license, patches and update strategy.
+
+## Implementation stages
+
+1. Establish archive signing key, GitHub Pages deployment, DNS and static archive layout.
+2. Publish a minimal test .deb, verify signature/keyring bootstrap and install via apt on a test host.
+3. Add a reusable GitHub Actions build-and-publish workflow for application repos.
+4. Deploy apt-cacher-ng on slagg and configure HTTP Debian mirror caching on clients; verify cache hits.
+5. Evaluate caching/mirroring the custom HTTPS archive and later a partial Debian mirror if necessary.
+
+## Status
+
+Initial packaging and archive workflows exist in GitHub; PyPI repackaging is now implemented but has not yet been CI-verified with a nonempty manifest. Pages deployment, signing key configuration, and apt-cacher-ng status must be verified separately.
+
+
+## PyPI-to-Debian packaging
+
+A manifest-driven builder (`pypi-packages.txt`, `scripts/build-pypi-debs`) automatically generates architecture-independent `pypi-*` packages from pure-Python wheels and their resolved dependencies. Build-time pip runs only in GitHub Actions or a developer environment; installed systems need only APT and the system Python 3.13. Application imports are isolated under `/usr/lib/pypi-<name>`, and console-script wrappers are placed in `/usr/bin`. The builder targets Debian 13 and rejects native wheels, source distributions, and unsupported manifest syntax.
+
+The publication workflow now includes the manifest and builder as triggers and imports generated debs into the existing signed archive. Validation and publishing are separate workflows; no unverified packages are intentionally deployed. Existing publication limitations remain: transitive dependencies are not locked, updates to a root package without a version bump can collide with archived bytes, command names may conflict, and no automatic service configuration or native-extension builds are attempted. Future work: lockfile with hashes, clean-install smoke tests, dependency metadata checks, command-conflict detection, automated Debian revisions, and optional architecture-specific builds.
+
+
+## Dell PERC controller utility
+
+Import the original Dell PERC CLI `perccli_007.1623.0000.0000_all.deb` unchanged from the [`perccli-7.1623` GitHub release](https://github.com/mbligh/apt/releases/tag/perccli-7.1623). The importer pins SHA-256 `e46d955241c932023caf63862cd9dacb2b723b7f944340efb0e5afb6a2681e9d`, obtained from GitHub's uploaded asset digest, and validates the Debian package identity and version. This avoids Dell CDN HTTP 403 responses on GitHub Actions runners. It runs in the build and publish workflows.
+
+PERCCLI is proprietary Dell software. The user uploaded the original package to a public release; the applicable redistribution permission has not been independently verified.
+
+## Node.js 24 and Desktop Commander
+
+Build `nodejs24` as a parallel amd64-only, pinned, SHA-256-verified Node.js 24.22.2 LTS runtime from the official Linux release. Install just the Node binary under `/usr/lib/nodejs24/bin/node`, exposing `/usr/bin/node24`, without replacing the distribution's `/usr/bin/node` and without shipping npm or npx. Packaging version `24.22.2-1`. Updating this runtime requires a new upstream version and verified SHA-256.
+
+Build `desktop-commander` 0.3.1-2 from upstream `@wonderwhy-er/desktop-commander` in CI, using npm only at build time. Bundle its runtime dependencies and invoke `/usr/bin/node24` directly; depend on `nodejs24 (>= 24.22.2)`. Keep its remote agent opt-in per user: no automatic system-level startup, root execution, or remote access until the user starts and pairs it. The vendor's remote relay processes command and result traffic; give the agent account limited privileges.
+
+Both packages are included in the existing build and signed-APT-publish workflows. CI checks SHA-256, installs both packages on Ubuntu 24.04 runners, verifies `node24 --version`, entrypoint syntax, and `desktop-commander remote --help` with a timeout. A Debian 13 end-to-end pairing test has not been performed. Desktop Commander transitive npm dependencies are still resolved on CI builds (no checked-in lockfile); this must be addressed before claiming reproducible output. The publishing pipeline rejects overwriting an existing Debian version with different bytes, so dependency changes require a package revision bump.
+
+## imapsync package
+
+Import the upstream imapsync 2.314 Debian package from the versioned upstream archive at `imapsync.lamiral.info/dist2/old_releases/2.314/`. The build verifies the package name, version, and architecture before adding the original `.deb` to `dist/`; it does not rebuild the Perl application. Both package build and signed repository publication workflows run this import. No external runtime service is required. The upstream archive does not publish a checksum alongside the download; adding an independently verified SHA-256 pin is a future hardening task. Normal archive signing protects the resulting published package and APT metadata, not the initial upstream download.
+
+
+## Cloudflare R2 publication (staged)
+
+The experimental `publish-r2.yml` workflow migrates the existing Pages archive to R2 bucket `mbligh-apt` using `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` and the existing `APT_SIGNING_KEY` GitHub secrets. It retains immutable `.deb` objects and signed SHA256 by-hash indexes; the existing GitHub Pages publishing workflow is retained until verified. Source fingerprints stored as a publication manifest in R2 control subsequent incremental rebuilds.
