@@ -99,3 +99,14 @@ jobs:
           test -n "$fingerprint"
           export SIGNING_FINGERPRINT="$fingerprint"
           python3 scripts/r2-publish publish
+      - name: Verify published APT repository through custom domain
+        run: |
+          set -euo pipefail
+          curl -fLsS --retry 3 https://apt.mbligh.org/dists/trixie/InRelease -o /tmp/r2-InRelease
+          curl -fLsS --retry 3 https://apt.mbligh.org/mbligh-archive-keyring.gpg -o /tmp/r2-keyring.gpg
+          gpg --no-default-keyring --keyring /tmp/r2-keyring.gpg --verify /tmp/r2-InRelease
+          sudo install -m 0644 /tmp/r2-keyring.gpg /usr/share/keyrings/mbligh-r2.gpg
+          echo 'deb [signed-by=/usr/share/keyrings/mbligh-r2.gpg] https://apt.mbligh.org trixie main' | sudo tee /etc/apt/sources.list.d/mbligh-r2.list
+          sudo apt-get update
+          apt-cache policy imapsync
+          apt-get download imapsync=2.314
