@@ -6,6 +6,8 @@ See [project.md](project.md) for design decisions.
 
 ## Packages
 
+- `imapsync`: upstream 2.314 Debian package, imported for copying selected IMAP folders between servers (such as Dovecot and Gmail). Install with `sudo apt install imapsync` after publication.
+
 - `deno`: upstream Deno 2.9.7, packaged as `2.9.7-1`
 - `nodejs24`: upstream Node.js 24.22.2 LTS runtime, parallel install as `/usr/bin/node24` (no npm; does not replace Debian's Node.js)
 - `desktop-commander`: Remote Desktop Commander 0.3.1, packaged as `0.3.1-2` with a dependency on `nodejs24`
