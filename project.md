@@ -90,3 +90,7 @@ The publication workflow now includes the manifest and builder as triggers and i
 Import the original Dell PERC CLI `perccli_007.1623.0000.0000_all.deb` unchanged from the [`perccli-7.1623` GitHub release](https://github.com/mbligh/apt/releases/tag/perccli-7.1623). The importer pins SHA-256 `e46d955241c932023caf63862cd9dacb2b723b7f944340efb0e5afb6a2681e9d`, obtained from GitHub's uploaded asset digest, and validates the Debian package identity and version. This avoids Dell CDN HTTP 403 responses on GitHub Actions runners. It runs in the build and publish workflows.
 
 PERCCLI is proprietary Dell software. The user uploaded the original package to a public release; the applicable redistribution permission has not been independently verified.
+
+## Desktop Commander
+
+A native `desktop-commander` Debian package is built from upstream npm release 0.3.1 in GitHub Actions. Build-time npm resolves and bundles the application and dependencies into `/usr/lib/desktop-commander`; the installed command runs through Node.js without npm/npx. This is a user-invoked remote agent, not an automatically enabled privileged service. The current packaging is amd64, requires Node.js >= 22.12, and has not yet passed CI or a Debian 13 installation smoke test. Transitive npm dependencies need a committed lockfile for reproducible rebuilds; the package version must be incremented when they change.
