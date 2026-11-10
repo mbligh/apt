@@ -64,6 +64,8 @@ jobs:
           sudo apt-get install -y ./dist/nodejs24_*.deb ./dist/desktop-commander_*.deb
           test "$(node24 --version)" = v24.22.2
           node24 --check /usr/lib/desktop-commander/node_modules/@wonderwhy-er/desktop-commander/dist/index.js
+          timeout 20s desktop-commander remote --help >/tmp/desktop-commander-help.txt
+          test -s /tmp/desktop-commander-help.txt
           test "$(readlink -f /usr/bin/node24)" = /usr/lib/nodejs24/bin/node
           dpkg-query -W -f='${Depends}\n' desktop-commander | grep -F 'nodejs24'
           echo "Desktop Commander installed; system node remains independent."
