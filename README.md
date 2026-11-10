@@ -112,3 +112,18 @@ sudo /opt/MegaRAID/perccli/perccli64 /c0/eall/sall show
 ```
 
 **Redistribution:** PERCCLI is proprietary Dell software. Public redistribution through GitHub Releases and Pages requires permission under Dell's applicable license; the repository has not independently verified those rights.
+
+## Desktop Commander Remote MCP
+
+`desktop-commander` packages upstream `@wonderwhy-er/desktop-commander` version 0.3.1 for Debian 13 amd64. npm runs **only in GitHub Actions**; the package includes its resolved JavaScript dependencies and needs Node.js >= 22.12 at runtime (no npm or npx). Node.js 24 is used during packaging.
+
+```sh
+sudo apt update
+sudo apt install desktop-commander
+# Run as an unprivileged user; follow the displayed device-pairing instructions:
+desktop-commander remote
+```
+
+The agent is deliberately **not** enabled as a root or system-wide service. Start it as the account whose permissions it should have. Remote access is mediated by the upstream Desktop Commander cloud service. Stop the process to disconnect it.
+
+Packaging is version-pinned at the top level, but transitive npm dependencies are currently resolved during each CI build; a checked-in lockfile and clean-install tests are still needed for fully reproducible releases. Node.js >= 22.12 must be available from an APT source on the target machine; Debian 13's default Node.js may be too old. Build and publish have not yet been verified.
