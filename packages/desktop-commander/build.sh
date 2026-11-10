@@ -3,7 +3,7 @@ set -eu
 cd "$(dirname "$0")/../.."
 
 VERSION=0.3.1
-REVISION=1
+REVISION=2
 ARCH=amd64
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
@@ -20,7 +20,7 @@ mkdir -p "$pkg/DEBIAN" "$pkg/usr/lib/desktop-commander" "$pkg/usr/bin" "$pkg/usr
 cp -a "$tmp/upstream/node_modules" "$pkg/usr/lib/desktop-commander/"
 cat > "$pkg/usr/bin/desktop-commander" <<'EOF'
 #!/bin/sh
-exec /usr/bin/node /usr/lib/desktop-commander/node_modules/@wonderwhy-er/desktop-commander/dist/index.js "$@"
+exec /usr/bin/node24 /usr/lib/desktop-commander/node_modules/@wonderwhy-er/desktop-commander/dist/index.js "$@"
 EOF
 chmod 755 "$pkg/usr/bin/desktop-commander"
 cat > "$pkg/DEBIAN/control" <<EOF
@@ -30,7 +30,7 @@ Section: utils
 Priority: optional
 Architecture: ${ARCH}
 Maintainer: mbligh <noreply@github.com>
-Depends: nodejs (>= 22.12), ca-certificates
+Depends: nodejs24 (>= 24.22.2), ca-certificates
 Description: Desktop Commander MCP server and remote device agent
  Remote MCP agent and filesystem/terminal tools, with JavaScript
  dependencies bundled at build time. No npm is needed at runtime.
