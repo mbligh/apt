@@ -5,6 +5,10 @@ on:
   push:
     branches: [main]
     paths:
+      - 'packages/**'
+      - 'pypi-packages.txt'
+      - 'scripts/build-pypi-debs'
+      - 'scripts/r2-publish'
       - '.github/workflows/publish-r2.yml'
 
 permissions:
@@ -78,10 +82,14 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          mkdir -p /tmp/legacy-pages/site
-          gh run download 42872455165 --repo mbligh/apt --name github-pages --dir /tmp/legacy-pages
-          tar -xf /tmp/legacy-pages/artifact.tar -C /tmp/legacy-pages/site
-          APT_MIGRATION_DIR=/tmp/legacy-pages/site python3 scripts/r2-publish bootstrap
+          if test -e /tmp/r2-initial; then
+            mkdir -p /tmp/legacy-pages/site
+            gh run download 42872455165 --repo mbligh/apt --name github-pages --dir /tmp/legacy-pages
+            tar -xf /tmp/legacy-pages/artifact.tar -C /tmp/legacy-pages/site
+            APT_MIGRATION_DIR=/tmp/legacy-pages/site python3 scripts/r2-publish bootstrap
+          else
+            echo "Existing R2 publication found; skipping legacy archive import"
+          fi
       - name: Publish packages and APT indexes
         run: |
           set -euo pipefail
