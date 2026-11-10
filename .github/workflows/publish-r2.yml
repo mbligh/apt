@@ -38,6 +38,8 @@ jobs:
           sudo apt-get install -y dpkg-dev apt-utils gnupg unzip curl
           aws --version
           python3 --version
+          test -f scripts/build-pypi-debs
+          test -f packages/imapsync/build.sh
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
