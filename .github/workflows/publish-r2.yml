@@ -47,6 +47,8 @@ jobs:
         run: |
           set -euo pipefail
           echo "R2_ENDPOINT=https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com" >> "$GITHUB_ENV"
+          python3 -c 'import os,re; a=os.environ["R2_ACCOUNT_ID"]; assert re.fullmatch(r"[a-fA-F0-9]{32}",a), f"R2_ACCOUNT_ID must be 32 hex characters (got length {len(a)})"'
+          curl --head --silent --show-error --max-time 15 "https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com/" >/dev/null
           python3 scripts/r2-publish plan
       - name: Fetch Debian index only if PyPI packages need rebuilding
         run: |
