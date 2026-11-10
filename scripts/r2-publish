@@ -121,6 +121,10 @@ def plan():
 def stanzas(contents):
     for item in contents.decode().split("\n\n"):
         item = item.strip()
+        # Drop empty optional control fields (e.g. "Provides:"). APT
+        # rejects them even though dpkg-deb -f prints them.
+        item = "\\n".join(line for line in item.splitlines()
+                         if not re.fullmatch(r"[A-Za-z][A-Za-z0-9-]*:\\s*", line))
         if item:
             fields = {}
             for line in item.splitlines():
@@ -163,6 +167,8 @@ def bootstrap():
 
 def deb_stanza(deb):
     metadata = run("dpkg-deb", "-f", str(deb), capture_output=True, text=True).stdout.strip()
+    metadata = "\\n".join(line for line in metadata.splitlines()
+                         if not re.fullmatch(r"[A-Za-z][A-Za-z0-9-]*:\\s*", line))
     filename = "pool/main/" + deb.name
     return {"Filename": filename, "SHA256": digest(deb)}, (
         metadata + "\nFilename: " + filename +
