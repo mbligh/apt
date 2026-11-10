@@ -113,6 +113,8 @@ def plan():
         Path("/tmp/r2-build-pypi").touch()
     print("Changed package builds:", changed)
     print("PyPI rebuild:", Path("/tmp/r2-build-pypi").exists())
+    if state is None:
+        Path("/tmp/r2-initial").touch()
     print("Initial R2 publication:", state is None)
 
 
