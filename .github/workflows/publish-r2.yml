@@ -45,6 +45,7 @@ jobs:
           python3 --version
           test -f scripts/build-pypi-debs
           test -f packages/imapsync/build.sh
+          test -f packages/racadm/build.sh
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
@@ -76,6 +77,15 @@ jobs:
             python -m venv /tmp/pypi-packager
             /tmp/pypi-packager/bin/pip install 'pip>=24,<27'
             /tmp/pypi-packager/bin/python scripts/build-pypi-debs --debian-packages /tmp/debian-trixie-Packages.xz
+          fi
+      - name: Verify RACADM dependencies against Debian 13 when rebuilt
+        run: |
+          set -euo pipefail
+          if compgen -G 'dist/srvadmin-idracadm8*.deb' >/dev/null; then
+            docker run --rm -v "$PWD/dist:/pkgs:ro" debian:trixie sh -ec '
+              apt-get update -qq
+              apt-get -s install /pkgs/srvadmin-hapi*.deb /pkgs/srvadmin-idracadm7*.deb /pkgs/srvadmin-idracadm8*.deb
+            '
           fi
       - name: Import existing Pages archive on first publication
         env:
