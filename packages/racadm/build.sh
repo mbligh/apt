@@ -25,7 +25,10 @@ for package in srvadmin-hapi srvadmin-idracadm7 srvadmin-idracadm8; do
     actual=$(dpkg-deb -f "$file" Package)
     [ "$actual" = "$package" ] || continue
     arch=$(dpkg-deb -f "$file" Architecture)
-    [ "$arch" = amd64 ] || { echo "Unexpected architecture $arch for $package" >&2; exit 1; }
+    case "$arch" in
+      amd64|all) ;;
+      *) echo "Unexpected architecture $arch for $package" >&2; exit 1 ;;
+    esac
     version=$(dpkg-deb -f "$file" Version)
     case "$version" in
       "$VERSION"|"$VERSION"-*|"$VERSION".*) ;;
