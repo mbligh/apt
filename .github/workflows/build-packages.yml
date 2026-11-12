@@ -21,12 +21,19 @@ jobs:
         run: |
           sh packages/deno/build.sh
           sh packages/perccli/build.sh
+          sh packages/racadm/build.sh
           sh packages/yt-dlp-sabr/build.sh
           sh packages/nodejs24/build.sh
           sh packages/desktop-commander/build.sh
           sh packages/imapsync/build.sh
           sh packages/radarr/build.sh
           sh packages/sonarr/build.sh
+      - name: Verify RACADM dependencies against Debian 13
+        run: |
+          docker run --rm -v "$PWD/dist:/pkgs:ro" debian:trixie sh -ec '
+            apt-get update -qq
+            apt-get -s install /pkgs/srvadmin-hapi*.deb /pkgs/srvadmin-idracadm7*.deb /pkgs/srvadmin-idracadm8*.deb
+          '
       - name: Inspect packages
         run: |
           for f in dist/*.deb; do
