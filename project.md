@@ -111,3 +111,7 @@ The primary `publish-r2.yml` workflow migrated the existing Pages archive to R2 
 ## Dell RACADM
 
 Import original Dell iDRAC Tools 11.3.0.0 amd64 packages from the vendor's Linux tar archive: `srvadmin-hapi`, `srvadmin-idracadm7`, and `srvadmin-idracadm8` (Ubuntu 22 vendor builds). `packages/racadm/build.sh` validates package identities, architecture, and versions; it does not change vendor binaries. Both CI build and R2 publication workflows now check that APT can resolve dependencies in a clean Debian 13 (Trixie) environment before releasing new RACADM packages. This is a dependency simulation, not proof of local RACADM runtime compatibility. Dell has not supplied Debian 13-specific packages; Dell vendor licensing and redistribution terms must be checked before public distribution. The vendor archive's SHA-256 is not pinned yet and should be verified against an authoritative digest. The upload must not be considered complete until publication workflow succeeds.
+
+## PMTiles CLI
+
+`packages/pmtiles/build.sh` packages the official pinned go-pmtiles v1.31.2 Linux amd64 release. The release archive SHA-256 is checked before installing its `pmtiles` executable into `/usr/bin`; the complete upstream CLI and subcommands are supplied in one Debian package. The R2 publisher automatically discovers this package and rebuilds it when its packaging sources change. The Debian package build workflow smoke-tests its CLI commands.
