@@ -46,4 +46,4 @@ License: GPL-3
 EOF
 
 mkdir -p dist
-dpkg-deb --build --root-owner-group "$pkg" "dist/ytdl-sub_$VERSION-$REVISION_$ARCH.deb"
+dpkg-deb --build --root-owner-group "$pkg" "dist/ytdl-sub_${VERSION}-${REVISION}_${ARCH}.deb"
