@@ -115,3 +115,19 @@ Import original Dell iDRAC Tools 11.3.0.0 amd64 packages from the vendor's Linux
 ## PMTiles CLI
 
 `packages/pmtiles/build.sh` packages the official pinned go-pmtiles v1.31.2 Linux amd64 release. The release archive SHA-256 is checked before installing its `pmtiles` executable into `/usr/bin`; the complete upstream CLI and subcommands are supplied in one Debian package. The R2 publisher automatically discovers this package and rebuilds it when its packaging sources change. The Debian package build workflow smoke-tests its CLI commands.
+
+
+## ytdl-sub CLI
+
+Package the upstream jmbannon/ytdl-sub release 2026.11.10.post2 as Debian
+`ytdl-sub_2026.11.10.post2-1_amd64.deb`. The pinned SHA-256 verifies the
+official x86-64 PyInstaller executable. This is a self-contained build with its
+own Python/yt-dlp dependencies and upstream presets: no `pip` invocation at
+installation or runtime, and no Docker requirement. Install the executable at
+`/usr/bin/ytdl-sub`, depend on FFmpeg and glibc, and recommend Deno
+for yt-dlp's optional JavaScript runtime needs. No daemon, system account,
+configuration or state directory is created; CLI configuration is owned by the
+invoking user. Upstream source: https://github.com/jmbannon/ytdl-sub;
+license: GPL-3. The build and R2 publication workflows install the package in
+a Debian 13 container and smoke-test `ytdl-sub -h` before release.
+Updates require advancing the pinned release version and digest.

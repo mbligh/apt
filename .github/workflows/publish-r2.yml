@@ -87,6 +87,17 @@ jobs:
               apt-get -s install /pkgs/srvadmin-hapi*.deb /pkgs/srvadmin-idracadm7*.deb /pkgs/srvadmin-idracadm8*.deb
             '
           fi
+      - name: Verify ytdl-sub on Debian 13 when rebuilt
+        run: |
+          set -euo pipefail
+          if compgen -G 'dist/ytdl-sub_*.deb' >/dev/null; then
+            docker run --rm -v "$PWD/dist:/pkgs:ro" debian:trixie sh -ec '
+              apt-get update -qq
+              apt-get install -y --no-install-recommends /pkgs/ytdl-sub_*.deb
+              timeout 60 ytdl-sub -h >/tmp/ytdl-sub-help.txt
+              test -s /tmp/ytdl-sub-help.txt
+            '
+          fi
       - name: Import existing Pages archive on first publication
         env:
           GH_TOKEN: ${{ github.token }}

@@ -21,6 +21,7 @@ jobs:
         run: |
           sh packages/deno/build.sh
           sh packages/pmtiles/build.sh
+          sh packages/ytdl-sub/build.sh
           sh packages/perccli/build.sh
           sh packages/racadm/build.sh
           sh packages/yt-dlp-sabr/build.sh
@@ -41,6 +42,14 @@ jobs:
           pmtiles --help
           pmtiles extract --help
           pmtiles show --help
+      - name: Test ytdl-sub on Debian 13
+        run: |
+          docker run --rm -v "$PWD/dist:/pkgs:ro" debian:trixie sh -ec '
+            apt-get update -qq
+            apt-get install -y --no-install-recommends /pkgs/ytdl-sub_*.deb
+            timeout 60 ytdl-sub -h >/tmp/ytdl-sub-help.txt
+            test -s /tmp/ytdl-sub-help.txt
+          '
       - name: Inspect packages
         run: |
           for f in dist/*.deb; do
