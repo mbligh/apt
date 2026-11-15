@@ -4,7 +4,7 @@ set -eu
 cd "$(dirname "$0")/../.."
 
 VERSION=2026.11.10.post2
-REVISION=1
+REVISION=2
 ARCH=amd64
 SHA256=032bf52d19770779f575f00950c8f1082f5b51e64e3e31f3158b33b25bebfbbb
 URL="https://github.com/jmbannon/ytdl-sub/releases/download/$VERSION/ytdl-sub"
@@ -15,8 +15,18 @@ curl -fL --retry 3 -o "$tmp/ytdl-sub" "$URL"
 printf '%s  %s\n' "$SHA256" "$tmp/ytdl-sub" | sha256sum -c -
 
 pkg="$tmp/pkg"
-mkdir -p "$pkg/DEBIAN" "$pkg/usr/bin" "$pkg/usr/share/doc/ytdl-sub"
-install -m 755 "$tmp/ytdl-sub" "$pkg/usr/bin/ytdl-sub"
+mkdir -p "$pkg/DEBIAN" "$pkg/usr/bin" "$pkg/usr/lib/ytdl-sub" "$pkg/usr/share/doc/ytdl-sub"
+install -m 755 "$tmp/ytdl-sub" "$pkg/usr/lib/ytdl-sub/ytdl-sub"
+
+# The upstream PyInstaller executable may not discover Debian's CA trust store.
+# Keep /usr/bin/ytdl-sub as the public entrypoint and respect caller overrides.
+cat > "$pkg/usr/bin/ytdl-sub" <<'EOF'
+#!/bin/sh
+: "${SSL_CERT_FILE:=/etc/ssl/certs/ca-certificates.crt}"
+export SSL_CERT_FILE
+exec /usr/lib/ytdl-sub/ytdl-sub "$@"
+EOF
+chmod 755 "$pkg/usr/bin/ytdl-sub"
 
 cat > "$pkg/DEBIAN/control" <<EOF
 Package: ytdl-sub
@@ -25,7 +35,7 @@ Section: video
 Priority: optional
 Architecture: $ARCH
 Maintainer: mbligh <noreply@github.com>
-Depends: libc6 (>= 2.28), ffmpeg
+Depends: libc6 (>= 2.28), ffmpeg, ca-certificates
 Recommends: deno
 Description: yt-dlp subscription downloader and metadata generator
  Automates media downloading, organization and metadata generation for

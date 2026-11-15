@@ -94,7 +94,11 @@ jobs:
             docker run --rm -v "$PWD/dist:/pkgs:ro" debian:trixie sh -ec '
               apt-get update -qq
               apt-get install -y --no-install-recommends /pkgs/ytdl-sub_*.deb
-              timeout 60 ytdl-sub -h >/tmp/ytdl-sub-help.txt
+              test -x /usr/lib/ytdl-sub/ytdl-sub
+              test -f /etc/ssl/certs/ca-certificates.crt
+              sh -n /usr/bin/ytdl-sub
+              grep -Fq "SSL_CERT_FILE:=/etc/ssl/certs/ca-certificates.crt" /usr/bin/ytdl-sub
+              env -u SSL_CERT_FILE timeout 60 ytdl-sub -h >/tmp/ytdl-sub-help.txt
               test -s /tmp/ytdl-sub-help.txt
             '
           fi

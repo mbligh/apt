@@ -120,11 +120,15 @@ Import original Dell iDRAC Tools 11.3.0.0 amd64 packages from the vendor's Linux
 ## ytdl-sub CLI
 
 Package the upstream jmbannon/ytdl-sub release 2026.11.10.post2 as Debian
-`ytdl-sub_2026.11.10.post2-1_amd64.deb`. The pinned SHA-256 verifies the
+`ytdl-sub_2026.11.10.post2-2_amd64.deb`. The pinned SHA-256 verifies the
 official x86-64 PyInstaller executable. This is a self-contained build with its
 own Python/yt-dlp dependencies and upstream presets: no `pip` invocation at
-installation or runtime, and no Docker requirement. Install the executable at
-`/usr/bin/ytdl-sub`, depend on FFmpeg and glibc, and recommend Deno
+installation or runtime, and no Docker requirement. Install the upstream binary
+at `/usr/lib/ytdl-sub/ytdl-sub`, with a POSIX shell launcher at
+`/usr/bin/ytdl-sub` that defaults `SSL_CERT_FILE` to Debian's system CA bundle
+(`/etc/ssl/certs/ca-certificates.crt`) if unset, preserving explicit overrides.
+This fixes HTTPS verification for channel artwork fetched by the bundled
+Python's urllib. Depend on FFmpeg, glibc and `ca-certificates`, and recommend Deno
 for yt-dlp's optional JavaScript runtime needs. No daemon, system account,
 configuration or state directory is created; CLI configuration is owned by the
 invoking user. Upstream source: https://github.com/jmbannon/ytdl-sub;

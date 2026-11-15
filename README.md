@@ -6,7 +6,7 @@ See [project.md](project.md) for design decisions.
 
 ## Packages
 
-- `ytdl-sub`: upstream 2026.11.10.post2 standalone Linux amd64 binary, repackaged as `2026.11.10.post2-1`. Provides `ytdl-sub` for automated subscriptions and Plex/Jellyfin metadata; depends on FFmpeg and recommends Deno. The upstream release is SHA-256 verified.
+- `ytdl-sub`: upstream 2026.11.10.post2 standalone Linux amd64 binary, repackaged as `2026.11.10.post2-2`. Provides `ytdl-sub` for automated subscriptions and Plex/Jellyfin metadata; depends on FFmpeg and Debian's `ca-certificates`, and recommends Deno. Its launcher defaults `SSL_CERT_FILE` to `/etc/ssl/certs/ca-certificates.crt` (unless already set) so the bundled PyInstaller Python can verify HTTPS channel-artwork downloads. The upstream release is SHA-256 verified.
 
 - `pmtiles`: upstream go-pmtiles v1.31.2 CLI, packaged for Debian amd64. Provides the full `pmtiles` command and all of its upstream subcommands, including `extract`, `show`, `verify`, `convert`, and `serve`. This is distinct from Tippecanoe's `tippecanoe-decode` (a separate upstream project).
 
