@@ -20,6 +20,7 @@ jobs:
       - name: Build packages
         run: |
           sh packages/deno/build.sh
+          sh packages/pmtiles/build.sh
           sh packages/perccli/build.sh
           sh packages/racadm/build.sh
           sh packages/yt-dlp-sabr/build.sh
@@ -34,6 +35,12 @@ jobs:
             apt-get update -qq
             apt-get -s install /pkgs/srvadmin-hapi*.deb /pkgs/srvadmin-idracadm7*.deb /pkgs/srvadmin-idracadm8*.deb
           '
+      - name: Test PMTiles CLI
+        run: |
+          sudo dpkg -i dist/pmtiles_*.deb
+          pmtiles --help
+          pmtiles extract --help
+          pmtiles show --help
       - name: Inspect packages
         run: |
           for f in dist/*.deb; do
