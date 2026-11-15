@@ -6,6 +6,8 @@ See [project.md](project.md) for design decisions.
 
 ## Packages
 
+- `pmtiles`: upstream go-pmtiles v1.31.2 CLI, packaged for Debian amd64. Provides the full `pmtiles` command and all of its upstream subcommands, including `extract`, `show`, `verify`, `convert`, and `serve`. This is distinct from Tippecanoe's `tippecanoe-decode` (a separate upstream project).
+
 - `imapsync`: upstream 2.314 Debian package, imported for copying selected IMAP folders between servers (such as Dovecot and Gmail). Install with `sudo apt install imapsync` after publication.
 
 - `deno`: upstream Deno 2.9.7, packaged as `2.9.7-1`
