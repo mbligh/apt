@@ -11,7 +11,9 @@ URL=https://www.amd.com/content/dam/amd/en/support/downloads/solarflare/firmware
 
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT HUP INT TERM
-curl --fail --location --retry 3 --proto '=https' --tlsv1.2 \
+curl --fail --location --http1.1 --retry 5 --retry-all-errors \
+  --retry-delay 2 --connect-timeout 20 --max-time 300 \
+  --user-agent 'Mozilla/5.0' --proto '=https' --tlsv1.2 \
   -o "$tmp/$ARCHIVE" "$URL"
 echo "AMD sfutils download sha256 (record for independent verification):"
 sha256sum "$tmp/$ARCHIVE"
