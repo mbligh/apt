@@ -36,12 +36,12 @@ jobs:
       APT_SIGNING_KEY: ${{ secrets.APT_SIGNING_KEY }}
     steps:
       - uses: actions/checkout@v5
-      - name: Require read-only access to private tools source
+      - name: Require read-only deploy key for private tools source
         env:
-          TOOLS_READ_TOKEN: ${{ secrets.TOOLS_READ_TOKEN }}
+          TOOLS_DEPLOY_KEY: ${{ secrets.TOOLS_DEPLOY_KEY }}
         run: |
-          if [ -z "$TOOLS_READ_TOKEN" ]; then
-            echo "::error::Set TOOLS_READ_TOKEN (fine-grained PAT: mbligh/tools, Contents: read)."
+          if [ -z "$TOOLS_DEPLOY_KEY" ]; then
+            echo "::error::Set TOOLS_DEPLOY_KEY (read-only SSH deploy key for mbligh/tools)."
             exit 1
           fi
       - name: Checkout private tools/g
@@ -49,7 +49,7 @@ jobs:
         with:
           repository: mbligh/tools
           ref: master
-          token: ${{ secrets.TOOLS_READ_TOKEN }}
+          ssh-key: ${{ secrets.TOOLS_DEPLOY_KEY }}
           path: private-tools
           persist-credentials: false
           fetch-depth: 0
