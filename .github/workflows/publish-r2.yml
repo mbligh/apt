@@ -10,6 +10,9 @@ on:
       - 'scripts/build-pypi-debs'
       - 'scripts/r2-publish'
       - '.github/workflows/publish-r2.yml'
+  # Also pick up tools/g changes without having to push to this repository.
+  schedule:
+    - cron: '23 */6 * * *'
 
 permissions:
   contents: read
@@ -33,6 +36,37 @@ jobs:
       APT_SIGNING_KEY: ${{ secrets.APT_SIGNING_KEY }}
     steps:
       - uses: actions/checkout@v5
+      - name: Require read-only access to private tools source
+        env:
+          TOOLS_READ_TOKEN: ${{ secrets.TOOLS_READ_TOKEN }}
+        run: |
+          if [ -z "$TOOLS_READ_TOKEN" ]; then
+            echo "::error::Set TOOLS_READ_TOKEN (fine-grained PAT: mbligh/tools, Contents: read)."
+            exit 1
+          fi
+      - name: Checkout private tools/g
+        uses: actions/checkout@v5
+        with:
+          repository: mbligh/tools
+          ref: master
+          token: ${{ secrets.TOOLS_READ_TOKEN }}
+          path: private-tools
+          persist-credentials: false
+          fetch-depth: 0
+          sparse-checkout: |
+            tools/g
+          sparse-checkout-cone-mode: false
+      - name: Stage tools/g and its source-derived Debian version
+        run: |
+          set -euo pipefail
+          test -f private-tools/tools/g
+          commit="$(git -C private-tools log -1 --format=%H -- tools/g)"
+          timestamp="$(git -C private-tools log -1 --format=%ct -- tools/g)"
+          test -n "$commit" && test -n "$timestamp"
+          version="0.$(date -u -d "@$timestamp" +%Y%m%d%H%M%S)+git${commit:0:12}-1"
+          install -m 644 private-tools/tools/g packages/mbligh-tools/upstream-g
+          printf '%s\n' "$version" > packages/mbligh-tools/upstream-version
+          echo "Packaging tools/g at $commit as mbligh-tools $version"
       - name: Validate configuration and install tools
         run: |
           set -euo pipefail
@@ -78,6 +112,25 @@ jobs:
             python -m venv /tmp/pypi-packager
             /tmp/pypi-packager/bin/pip install 'pip>=24,<27'
             /tmp/pypi-packager/bin/python scripts/build-pypi-debs --debian-packages /tmp/debian-trixie-Packages.xz
+          fi
+      - name: Smoke-test mbligh-tools when rebuilt
+        run: |
+          set -euo pipefail
+          if compgen -G 'dist/mbligh-tools_*.deb' >/dev/null; then
+            sudo apt-get install -y ./dist/mbligh-tools_*.deb
+            test -x /usr/bin/g
+            scratch="$(mktemp -d)"
+            trap 'rm -rf "$scratch"' EXIT
+            git init -q "$scratch"
+            (
+              cd "$scratch"
+              printf 'test\n' > abc
+              git add abc
+              g mv abc def
+              test -f def && test ! -e abc
+              git ls-files --error-unmatch def
+              test "$(g rev-parse --is-inside-work-tree)" = true
+            )
           fi
       - name: Verify Solarflare utilities on Debian 13 when rebuilt
         run: |
