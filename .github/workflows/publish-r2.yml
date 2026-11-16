@@ -40,12 +40,13 @@ jobs:
             test -n "${!value}" || { echo "::error::Missing secret: $value"; exit 1; }
           done
           sudo apt-get update
-          sudo apt-get install -y dpkg-dev apt-utils gnupg unzip curl
+          sudo apt-get install -y dpkg-dev apt-utils gnupg unzip curl alien rpm
           aws --version
           python3 --version
           test -f scripts/build-pypi-debs
           test -f packages/imapsync/build.sh
           test -f packages/racadm/build.sh
+          test -f packages/sfutils/build.sh
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
@@ -77,6 +78,17 @@ jobs:
             python -m venv /tmp/pypi-packager
             /tmp/pypi-packager/bin/pip install 'pip>=24,<27'
             /tmp/pypi-packager/bin/python scripts/build-pypi-debs --debian-packages /tmp/debian-trixie-Packages.xz
+          fi
+      - name: Verify Solarflare utilities on Debian 13 when rebuilt
+        run: |
+          set -euo pipefail
+          if compgen -G 'dist/sfutils_*.deb' >/dev/null; then
+            docker run --rm -v "$PWD/dist:/pkgs:ro" debian:trixie sh -ec '
+              apt-get update -qq
+              apt-get install -y --no-install-recommends /pkgs/sfutils_*.deb
+              command -v sfupdate
+              command -v sfboot
+            '
           fi
       - name: Verify RACADM dependencies against Debian 13 when rebuilt
         run: |

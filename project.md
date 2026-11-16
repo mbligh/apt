@@ -135,3 +135,7 @@ invoking user. Upstream source: https://github.com/jmbannon/ytdl-sub;
 license: GPL-3. The build and R2 publication workflows install the package in
 a Debian 13 container and smoke-test `ytdl-sub -h` before release.
 Updates require advancing the pinned release version and digest.
+
+## AMD Solarflare sfutils
+
+Repackage official AMD Solarflare Linux Utilities 8.3.4.1000 (SF-107601-LS issue 76) from the vendor x86_64 ZIP/RPM as a Debian 13 `sfutils` package, using `alien --to-deb --keep-version` without importing RPM maintainer scripts. Preserve vendor binaries and bundled firmware; do not install or rebuild a kernel driver. Provides `sfupdate`, `sfboot`, `sfkey`, and `sfctool`. No firmware is flashed automatically on installation. Main package build, R2 publisher, and legacy Pages fallback build the package; the first two smoke-test installation on Debian 13. Source: https://www.amd.com/en/support/downloads/solarflare-downloads.html/ethernet-adapters/solarflare/x2-series.html . The build logs the downloaded archive's SHA-256 but it is not independently pinned yet; AMD's redistribution terms for this proprietary firmware/tools archive must be verified before relying on public republishing. Firmware flashing should be initiated manually with console or alternate NIC access and verified board-specific compatibility.
