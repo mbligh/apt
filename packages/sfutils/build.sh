@@ -15,8 +15,7 @@ curl --fail --location --http1.1 --retry 5 --retry-all-errors \
   --retry-delay 2 --connect-timeout 20 --max-time 300 \
   --user-agent 'Mozilla/5.0' --proto '=https' --tlsv1.2 \
   -o "$tmp/$ARCHIVE" "$URL"
-echo "AMD sfutils download sha256 (record for independent verification):"
-sha256sum "$tmp/$ARCHIVE"
+echo "842bc13284a778c3be01af7e15cc106293d974b48ebcb4726120f9e8619c95c0  $tmp/$ARCHIVE" | sha256sum -c -
 
 # Require exactly one compatible, versioned vendor RPM in the ZIP.
 entries=$(unzip -Z -1 "$tmp/$ARCHIVE" | grep -E '(^|/)sfutils-[^/]+\.x86_64\.rpm$' || :)
@@ -46,7 +45,7 @@ rpm -qpl "$rpmfile" | grep -Eq '/(sbin|bin)/sfboot$' || {
 # Deliberately omit --scripts: do not import RPM installation/removal hooks.
 (
   cd "$tmp"
-  alien --to-deb --keep-version "$(basename "$rpmfile")"
+  fakeroot alien --to-deb --keep-version "$(basename "$rpmfile")"
 )
 
 set -- "$tmp"/sfutils_*_amd64.deb

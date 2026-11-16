@@ -13,7 +13,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - name: Install build tools
-        run: sudo apt-get update && sudo apt-get install -y unzip dpkg-dev curl alien rpm
+        run: sudo apt-get update && sudo apt-get install -y unzip dpkg-dev curl alien rpm fakeroot
       - uses: actions/setup-node@v4
         with:
           node-version: '24'

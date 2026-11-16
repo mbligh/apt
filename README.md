@@ -6,7 +6,7 @@ See [project.md](project.md) for design decisions.
 
 ## Packages
 
-- `sfutils`: AMD Solarflare Linux Utilities 8.3.4.1000 (`SF-107601-LS`), converted from AMD's x86_64 RPM for Debian 13. Includes `sfupdate`, `sfboot`, `sfkey`, and `sfctool`. Firmware updates are **manual only**; installation does not flash the NIC. AMD upstream download is over HTTPS, with SHA-256 printed by the build; independently pinned hash and public redistribution rights remain to be verified. See [AMD downloads](https://www.amd.com/en/support/downloads/solarflare-downloads.html/ethernet-adapters/solarflare/x2-series.html).
+- `sfutils`: AMD Solarflare Linux Utilities 8.3.4.1000 (`SF-107601-LS`), converted from AMD's x86_64 RPM for Debian 13. Includes `sfupdate`, `sfboot`, `sfkey`, and `sfctool`. Firmware updates are **manual only**; installation does not flash the NIC. AMD upstream download is over HTTPS, with pinned SHA-256 `842bc13284a778c3be01af7e15cc106293d974b48ebcb4726120f9e8619c95c0`; public redistribution rights remain to be verified. See [AMD downloads](https://www.amd.com/en/support/downloads/solarflare-downloads.html/ethernet-adapters/solarflare/x2-series.html).
 
 - `ytdl-sub`: upstream 2026.11.10.post2 standalone Linux amd64 binary, repackaged as `2026.11.10.post2-2`. Provides `ytdl-sub` for automated subscriptions and Plex/Jellyfin metadata; depends on FFmpeg and Debian's `ca-certificates`, and recommends Deno. Its launcher defaults `SSL_CERT_FILE` to `/etc/ssl/certs/ca-certificates.crt` (unless already set) so the bundled PyInstaller Python can verify HTTPS channel-artwork downloads. The upstream release is SHA-256 verified.
 
