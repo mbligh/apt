@@ -6,6 +6,8 @@ See [project.md](project.md) for design decisions.
 
 ## Packages
 
+- `mbligh-tools`: architecture-independent `/usr/bin/g` Git convenience command, built from the private `mbligh/tools` repository's `tools/g`. The APT publisher reads only that file using an SSH deploy key; version numbers follow the latest source commit affecting `tools/g`. Install with `sudo apt install mbligh-tools`.
+
 - `sfutils`: AMD Solarflare Linux Utilities 8.3.4.1000 (`SF-107601-LS`), converted from AMD's x86_64 RPM for Debian 13. Includes `sfupdate`, `sfboot`, `sfkey`, and `sfctool`. Firmware updates are **manual only**; installation does not flash the NIC. AMD upstream download is over HTTPS, with pinned SHA-256 `842bc13284a778c3be01af7e15cc106293d974b48ebcb4726120f9e8619c95c0`; public redistribution rights remain to be verified. See [AMD downloads](https://www.amd.com/en/support/downloads/solarflare-downloads.html/ethernet-adapters/solarflare/x2-series.html).
 
 - `ytdl-sub`: upstream 2026.11.10.post2 standalone Linux amd64 binary, repackaged as `2026.11.10.post2-2`. Provides `ytdl-sub` for automated subscriptions and Plex/Jellyfin metadata; depends on FFmpeg and Debian's `ca-certificates`, and recommends Deno. Its launcher defaults `SSL_CERT_FILE` to `/etc/ssl/certs/ca-certificates.crt` (unless already set) so the bundled PyInstaller Python can verify HTTPS channel-artwork downloads. The upstream release is SHA-256 verified.
@@ -140,3 +142,49 @@ desktop-commander remote
 The agent is **not** enabled automatically as a privileged system service; it only runs when started. Pair it using upstream Desktop Commander instructions and stop it to disconnect. Remote execution passes through the vendor's cloud service, so give the user account only the permissions it needs.
 
 `packages/nodejs24/build.sh` checks the official release SHA-256 `48cc0e21e048790e54c0cf5749c2725005313d652651c40b7a21feb9697aaf75`. CI builds both .debs, installs them and checks the selected Node version and Desktop Commander entrypoint syntax before publication. This is not a full remote pairing/integration test. Desktop Commander transitive npm dependencies are still resolved afresh in CI; a checked-in lockfile remains necessary for full reproducibility. Package publication is dependent on the existing signed archive workflow succeeding.
+
+## mbligh-tools: private source, public Debian package
+
+The `mbligh-tools` package currently contains only `g`, installed to
+`/usr/bin/g`, with dependencies `git` and `python3`. Debian package names
+use hyphens, not underscores. Machines need only the signed APT repository:
+`sudo apt update && sudo apt install mbligh-tools`.
+
+`mbligh/tools` is private and `mbligh/apt` is public. GitHub Actions'
+default `GITHUB_TOKEN` cannot check out a private sibling repository.
+Configure a **read-only deploy key** once:
+
+1. On your own machine, run
+   `ssh-keygen -t ed25519 -f ./mbligh-tools-deploy -N '' -C mbligh-apt-read-tools`
+   in a private directory.
+2. In **mbligh/tools → Settings → Deploy keys**, add the contents of
+   `mbligh-tools-deploy.pub`. Leave **Allow write access** unchecked.
+3. In **mbligh/apt → Settings → Secrets and variables → Actions**, create
+   the repository secret `TOOLS_DEPLOY_KEY`, using the *entire private key*
+   from `mbligh-tools-deploy` (not the `.pub` file).
+4. Remove the local private-key copy securely after storing a separate
+   protected backup, if desired. Never commit either secret to Git.
+
+The active [R2 publishing workflow](.github/workflows/publish-r2.yml)
+uses sparse checkout to obtain `tools/g`, then stages it *only inside the
+ephemeral CI workspace*. The build script
+[`packages/mbligh-tools/build.sh`](packages/mbligh-tools/build.sh)
+creates an `Architecture: all` Debian package from that staged file.
+The upstream file's last commit timestamp and SHA form the Debian version,
+so unchanged sources keep a stable version. The existing R2 build manifest
+detects changes to the staged source and only rebuilds the package when
+needed. The publishing workflow runs on changes to the APT repo, manually,
+and every six hours to discover changes to `tools/g`. Ordinary client
+`apt upgrade` then installs newly published versions.
+
+**Source visibility:** although the upstream repository remains private,
+the installed Python script `g` is *not secret*: it is part of the publicly
+downloadable `.deb`. No other files from `mbligh/tools` are packaged.
+
+Until `TOOLS_DEPLOY_KEY` exists, the R2 publishing workflow deliberately
+fails before attempting publication rather than shipping an outdated copy.
+After configuring the deploy key, run
+[Publish APT repository to Cloudflare R2](../../actions/workflows/publish-r2.yml)
+manually to publish the first package. The workflow smoke-tests `g mv`
+and native Git argument passthrough before publication. Do not consider the
+package published until that run succeeds.
