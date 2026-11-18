@@ -40,10 +40,21 @@ jobs:
           python -m venv /tmp/pypi-packager
           /tmp/pypi-packager/bin/pip install 'pip>=24,<27'
       - name: Build packages
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -eu
           for script in packages/deno/build.sh packages/sfutils/build.sh packages/perccli/build.sh packages/yt-dlp-sabr/build.sh packages/nodejs24/build.sh packages/desktop-commander/build.sh packages/imapsync/build.sh; do
-            sh "$script"
+            if sh "$script"; then
+              :
+            else
+              rc=$?
+              if [ "$script" = packages/yt-dlp-sabr/build.sh ] && [ "$rc" -eq 75 ]; then
+                echo "::warning title=yt-dlp-sabr unavailable::Skipping optional upstream download"
+                continue
+              fi
+              exit "$rc"
+            fi
           done
           /tmp/pypi-packager/bin/python scripts/build-pypi-debs --debian-packages /tmp/debian-trixie-Packages.xz
           for deb in dist/*.deb; do
