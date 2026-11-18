@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Publish immutable Debian packages and by-hash APT indexes to Cloudflare R2.
+"""Stage immutable Debian packages and publish signed APT indexes in R2.
 
-The manifest is a *successful publication* record, not a build cache. Package
-objects and by-hash indexes are uploaded before InRelease is replaced.
+Package build jobs call stage; the serialized index publisher calls index.
+Pending upload manifests remain until InRelease has been published.
 """
 import gzip
 import hashlib
