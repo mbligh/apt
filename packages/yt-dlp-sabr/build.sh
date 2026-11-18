@@ -13,8 +13,13 @@ if [ -n "${GH_TOKEN:-}" ]; then
 else
   set --
 fi
-release=$(curl -fsSL --retry 3 "$@" https://api.github.com/repos/bashonly/yt-dlp/releases/tags/sabr)
-printf '%s' "$release" > "$tmp/release.json"
+# An unavailable upstream release is optional for the repository as a whole.
+# Exit 75 (EX_TEMPFAIL) so publishing workflows may skip only this failure.
+if ! curl -fsSL --retry 3 "$@" -o "$tmp/release.json" \
+    https://api.github.com/repos/bashonly/yt-dlp/releases/tags/sabr; then
+  echo "yt-dlp-sabr: upstream release metadata unavailable; skipping (exit 75)" >&2
+  exit 75
+fi
 python3 - "$tmp/release.json" "$tmp/release-info" <<'PY'
 import json, re, sys
 from datetime import datetime, timezone
@@ -34,12 +39,15 @@ echo "Downloading yt-dlp SABR release asset $ASSET_ID"
 if ! curl -fL --retry 3 -o "$tmp/yt-dlp" \
   "https://github.com/bashonly/yt-dlp/releases/download/sabr/yt-dlp"; then
   echo "Browser asset URL failed; trying GitHub release asset API" >&2
-  curl -fL --retry 3 \
+  if ! curl -fL --retry 3 \
     -H 'Accept: application/octet-stream' \
     -H 'X-GitHub-Api-Version: 2022-11-28' \
     "$@" \
     -o "$tmp/yt-dlp" \
-    "https://api.github.com/repos/bashonly/yt-dlp/releases/assets/$ASSET_ID"
+    "https://api.github.com/repos/bashonly/yt-dlp/releases/assets/$ASSET_ID"; then
+    echo "yt-dlp-sabr: upstream asset unavailable; skipping (exit 75)" >&2
+    exit 75
+  fi
 fi
 echo "$SHA256  $tmp/yt-dlp" | sha256sum -c -
 pkg="$tmp/pkg"
