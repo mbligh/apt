@@ -18,6 +18,8 @@ jobs:
         with:
           node-version: '24'
       - name: Build packages
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           build_package() {
             local name="$1" rc=0
@@ -26,13 +28,24 @@ jobs:
             echo "::endgroup::"
             return "$rc"
           }
+          build_optional_package() {
+            local name="$1" rc=0
+            echo "::group::Build $name (optional)"
+            sh "packages/$name/build.sh" || rc=$?
+            echo "::endgroup::"
+            if [ "$rc" -eq 75 ]; then
+              echo "::warning title=$name unavailable::Upstream download unavailable; skipping optional package"
+            elif [ "$rc" -ne 0 ]; then
+              return "$rc"
+            fi
+          }
           build_package deno
           build_package pmtiles
           build_package ytdl-sub
           build_package perccli
           build_package racadm
           build_package sfutils
-          build_package yt-dlp-sabr
+          build_optional_package yt-dlp-sabr
           build_package nodejs24
           build_package desktop-commander
           build_package imapsync
