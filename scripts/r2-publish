@@ -189,10 +189,13 @@ def stage(run_id):
         pending = []
         for deb in sorted(DIST.glob("*.deb")):
             fields, stanza = deb_stanza(deb)
-            identity = run("dpkg-deb", "-f", str(deb),
-                           "Package", "Version", "Architecture",
-                           capture_output=True, text=True).stdout.splitlines()
-            if len(identity) != 3 or deb.name != "_".join(identity) + ".deb":
+            control = run("dpkg-deb", "-f", str(deb),
+                          capture_output=True, text=True).stdout.splitlines()
+            fields_by_name = {line.split(": ", 1)[0]: line.split(": ", 1)[1]
+                              for line in control if line and not line[0].isspace()
+                              and ": " in line}
+            identity = [fields_by_name.get(k) for k in ("Package", "Version", "Architecture")]
+            if not all(identity) or deb.name != "_".join(identity) + ".deb":
                 raise RuntimeError("Debian control fields disagree with filename: " + deb.name)
             key, sha = fields["Filename"], fields["SHA256"]
             size = deb.stat().st_size
