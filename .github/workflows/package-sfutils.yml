@@ -1,0 +1,17 @@
+name: Build sfutils
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'packages/sfutils/**'
+      - '.github/workflows/package-sfutils.yml'
+      - '.github/workflows/package-build.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    uses: ./.github/workflows/package-build.yml
+    with:
+      package: sfutils
+    secrets: inherit

@@ -1,0 +1,17 @@
+name: Build racadm
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'packages/racadm/**'
+      - '.github/workflows/package-racadm.yml'
+      - '.github/workflows/package-build.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    uses: ./.github/workflows/package-build.yml
+    with:
+      package: racadm
+    secrets: inherit

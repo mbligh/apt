@@ -1,0 +1,163 @@
+name: Build one Debian package (reusable)
+
+on:
+  workflow_call:
+    inputs:
+      package:
+        description: One package directory or pypi-<name>
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install packaging prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends dpkg-dev curl unzip alien rpm fakeroot python3-venv python3-pip
+      - name: Install Node 24 for JavaScript builds
+        if: inputs.package == 'desktop-commander' || inputs.package == 'metube'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Enable Corepack for MeTube frontend build
+        if: inputs.package == 'metube'
+        run: |
+          npm install --global corepack
+          corepack enable
+      - name: Install Python 3.13 for PyPI or MeTube
+        if: startsWith(inputs.package, 'pypi-') || inputs.package == 'metube'
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - name: Require private tools deploy key
+        if: inputs.package == 'mbligh-tools'
+        env:
+          TOOLS_DEPLOY_KEY: ${{ secrets.TOOLS_DEPLOY_KEY }}
+        run: |
+          test -n "$TOOLS_DEPLOY_KEY" || { echo "::error::Missing TOOLS_DEPLOY_KEY"; exit 1; }
+      - name: Checkout tools/g for mbligh-tools
+        if: inputs.package == 'mbligh-tools'
+        uses: actions/checkout@v5
+        with:
+          repository: mbligh/tools
+          ref: master
+          ssh-key: ${{ secrets.TOOLS_DEPLOY_KEY }}
+          path: private-tools
+          persist-credentials: false
+          fetch-depth: 0
+          sparse-checkout: |
+            tools/g
+          sparse-checkout-cone-mode: false
+      - name: Stage tools/g with source-derived version
+        if: inputs.package == 'mbligh-tools'
+        run: |
+          set -euo pipefail
+          test -f private-tools/tools/g
+          commit="$(git -C private-tools log -1 --format=%H -- tools/g)"
+          timestamp="$(git -C private-tools log -1 --format=%ct -- tools/g)"
+          version="0.$(date -u -d "@$timestamp" +%Y%m%d%H%M%S)+git${commit:0:12}-1"
+          install -m 644 private-tools/tools/g packages/mbligh-tools/upstream-g
+          printf '%s\n' "$version" > packages/mbligh-tools/upstream-version
+          echo "Packaging tools/g at $commit as $version"
+      - name: Build ${{ inputs.package }}
+        env:
+          PACKAGE: ${{ inputs.package }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          echo "::group::Build $PACKAGE"
+          rc=0
+          if [[ "$PACKAGE" == pypi-* ]]; then
+            curl -fLsS --retry 3 https://deb.debian.org/debian/dists/trixie/main/binary-amd64/Packages.xz -o /tmp/debian-trixie-Packages.xz
+            python -m venv /tmp/pypi-packager
+            /tmp/pypi-packager/bin/pip install 'pip>=24,<27'
+            /tmp/pypi-packager/bin/python scripts/build-pypi-debs --package "${PACKAGE#pypi-}" --debian-packages /tmp/debian-trixie-Packages.xz || rc=$?
+          else
+            test -f "packages/$PACKAGE/build.sh"
+            sh "packages/$PACKAGE/build.sh" || rc=$?
+          fi
+          echo "::endgroup::"
+          if (( rc != 0 )); then
+            echo "::error::Build $PACKAGE failed (exit $rc)"
+            exit "$rc"
+          fi
+          if ! compgen -G 'dist/*.deb' > /dev/null; then
+            if [[ "$PACKAGE" == pypi-* ]]; then
+              echo "::notice::Debian already provides this PyPI package, no artifact needed"
+              printf '%s\n' "No package generated for $PACKAGE" > dist/no-package.txt
+            else
+              echo "::error::Build succeeded without producing a .deb"
+              exit 1
+            fi
+          fi
+      - name: Validate packages and run package-specific tests
+        env:
+          PACKAGE: ${{ inputs.package }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          debs=(dist/*.deb)
+          for deb in "${debs[@]}"; do
+            dpkg-deb --info "$deb"
+            dpkg-deb --contents "$deb" >/dev/null
+            echo "Verified package: $deb"
+          done
+          case "$PACKAGE" in
+            sfutils)
+              docker run --rm -v "$PWD/dist:/pkgs:ro" debian:trixie sh -ec '
+                apt-get update -qq
+                apt-get install -y --no-install-recommends /pkgs/sfutils_*.deb
+                command -v sfupdate
+                command -v sfboot
+              '
+              ;;
+            racadm)
+              docker run --rm -v "$PWD/dist:/pkgs:ro" debian:trixie sh -ec '
+                apt-get update -qq
+                apt-get -s install /pkgs/srvadmin-hapi*.deb /pkgs/srvadmin-idracadm7*.deb /pkgs/srvadmin-idracadm8*.deb
+              '
+              ;;
+            ytdl-sub)
+              docker run --rm -v "$PWD/dist:/pkgs:ro" debian:trixie sh -ec '
+                apt-get update -qq
+                apt-get install -y --no-install-recommends /pkgs/ytdl-sub_*.deb
+                env -u SSL_CERT_FILE timeout 60 ytdl-sub -h > /tmp/ytdl-sub-help.txt
+                test -s /tmp/ytdl-sub-help.txt
+              '
+              ;;
+            pmtiles)
+              mkdir -p /tmp/pmtiles-extracted
+              dpkg-deb -x dist/pmtiles_*.deb /tmp/pmtiles-extracted
+              /tmp/pmtiles-extracted/usr/bin/pmtiles --help
+              ;;
+            nodejs24)
+              mkdir -p /tmp/nodejs24-extracted
+              dpkg-deb -x dist/nodejs24_*.deb /tmp/nodejs24-extracted
+              /tmp/nodejs24-extracted/usr/lib/nodejs24/bin/node --version
+              ;;
+            desktop-commander)
+              mkdir -p /tmp/desktop-commander-extracted
+              dpkg-deb -x dist/desktop-commander_*.deb /tmp/desktop-commander-extracted
+              node --check /tmp/desktop-commander-extracted/usr/lib/desktop-commander/node_modules/@wonderwhy-er/desktop-commander/dist/index.js
+              ;;
+            mbligh-tools)
+              mkdir -p /tmp/mbligh-tools-extracted
+              dpkg-deb -x dist/mbligh-tools_*.deb /tmp/mbligh-tools-extracted
+              python3 -m py_compile /tmp/mbligh-tools-extracted/usr/bin/g
+              ;;
+          esac
+      - name: Upload successful package artifacts
+        uses: actions/upload-artifact@v6
+        with:
+          name: debian-packages
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0

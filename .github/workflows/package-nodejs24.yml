@@ -1,0 +1,17 @@
+name: Build nodejs24
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'packages/nodejs24/**'
+      - '.github/workflows/package-nodejs24.yml'
+      - '.github/workflows/package-build.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    uses: ./.github/workflows/package-build.yml
+    with:
+      package: nodejs24
+    secrets: inherit

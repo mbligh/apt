@@ -1,0 +1,17 @@
+name: Build deno
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'packages/deno/**'
+      - '.github/workflows/package-deno.yml'
+      - '.github/workflows/package-build.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    uses: ./.github/workflows/package-build.yml
+    with:
+      package: deno
+    secrets: inherit

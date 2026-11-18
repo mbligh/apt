@@ -1,0 +1,17 @@
+name: Build ytdl-sub
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'packages/ytdl-sub/**'
+      - '.github/workflows/package-ytdl-sub.yml'
+      - '.github/workflows/package-build.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    uses: ./.github/workflows/package-build.yml
+    with:
+      package: ytdl-sub
+    secrets: inherit

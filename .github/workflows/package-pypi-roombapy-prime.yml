@@ -1,0 +1,18 @@
+name: Build pypi-roombapy-prime
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'pypi-packages.txt'
+      - 'scripts/build-pypi-debs'
+      - '.github/workflows/package-pypi-roombapy-prime.yml'
+      - '.github/workflows/package-build.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    uses: ./.github/workflows/package-build.yml
+    with:
+      package: pypi-roombapy-prime
+    secrets: inherit

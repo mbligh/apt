@@ -1,0 +1,19 @@
+name: Build yt-dlp-sabr
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'packages/yt-dlp-sabr/**'
+      - '.github/workflows/package-yt-dlp-sabr.yml'
+      - '.github/workflows/package-build.yml'
+  workflow_dispatch:
+  schedule:
+    - cron: '23 */6 * * *'
+
+jobs:
+  build:
+    uses: ./.github/workflows/package-build.yml
+    with:
+      package: yt-dlp-sabr
+    secrets: inherit

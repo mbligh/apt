@@ -1,0 +1,19 @@
+name: Build mbligh-tools
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'packages/mbligh-tools/**'
+      - '.github/workflows/package-mbligh-tools.yml'
+      - '.github/workflows/package-build.yml'
+  workflow_dispatch:
+  schedule:
+    - cron: '23 */6 * * *'
+
+jobs:
+  build:
+    uses: ./.github/workflows/package-build.yml
+    with:
+      package: mbligh-tools
+    secrets: inherit

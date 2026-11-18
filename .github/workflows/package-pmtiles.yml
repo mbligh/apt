@@ -1,0 +1,17 @@
+name: Build pmtiles
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'packages/pmtiles/**'
+      - '.github/workflows/package-pmtiles.yml'
+      - '.github/workflows/package-build.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    uses: ./.github/workflows/package-build.yml
+    with:
+      package: pmtiles
+    secrets: inherit

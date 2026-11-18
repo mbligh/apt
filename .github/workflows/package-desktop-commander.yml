@@ -1,0 +1,17 @@
+name: Build desktop-commander
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'packages/desktop-commander/**'
+      - '.github/workflows/package-desktop-commander.yml'
+      - '.github/workflows/package-build.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    uses: ./.github/workflows/package-build.yml
+    with:
+      package: desktop-commander
+    secrets: inherit

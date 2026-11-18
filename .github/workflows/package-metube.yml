@@ -1,0 +1,17 @@
+name: Build metube
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'packages/metube/**'
+      - '.github/workflows/package-metube.yml'
+      - '.github/workflows/package-build.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    uses: ./.github/workflows/package-build.yml
+    with:
+      package: metube
+    secrets: inherit

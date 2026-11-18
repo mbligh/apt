@@ -1,0 +1,17 @@
+name: Build perccli
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'packages/perccli/**'
+      - '.github/workflows/package-perccli.yml'
+      - '.github/workflows/package-build.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    uses: ./.github/workflows/package-build.yml
+    with:
+      package: perccli
+    secrets: inherit

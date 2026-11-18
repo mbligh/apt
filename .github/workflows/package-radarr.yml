@@ -1,0 +1,17 @@
+name: Build radarr
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'packages/radarr/**'
+      - '.github/workflows/package-radarr.yml'
+      - '.github/workflows/package-build.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    uses: ./.github/workflows/package-build.yml
+    with:
+      package: radarr
+    secrets: inherit

@@ -1,0 +1,17 @@
+name: Build imapsync
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'packages/imapsync/**'
+      - '.github/workflows/package-imapsync.yml'
+      - '.github/workflows/package-build.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    uses: ./.github/workflows/package-build.yml
+    with:
+      package: imapsync
+    secrets: inherit

@@ -1,0 +1,17 @@
+name: Build sonarr
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'packages/sonarr/**'
+      - '.github/workflows/package-sonarr.yml'
+      - '.github/workflows/package-build.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    uses: ./.github/workflows/package-build.yml
+    with:
+      package: sonarr
+    secrets: inherit

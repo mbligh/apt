@@ -1,0 +1,17 @@
+name: Build rtach
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'packages/rtach/**'
+      - '.github/workflows/package-rtach.yml'
+      - '.github/workflows/package-build.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    uses: ./.github/workflows/package-build.yml
+    with:
+      package: rtach
+    secrets: inherit
