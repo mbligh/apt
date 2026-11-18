@@ -2,9 +2,13 @@
 
 ## Active build/publishing architecture (November 2026)
 
-The repository is served from **Cloudflare R2** at `https://apt.mbligh.org` (Debian 13/trixie, amd64 and all). `package-<name>.yml` workflows build packages independently on relevant source changes, manual dispatch, or scheduled checks for moving upstream sources. A reusable `package-build.yml` runs package scripts, checks outputs and uploads `debian-packages` artifacts. The `mbligh-tools` workflow stages the private `tools/g` file from a read-only SSH deploy key only for that package.
+The repository is served from **Cloudflare R2** at `https://apt.mbligh.org` (Debian 13/trixie, amd64 and all).
 
-The R2 publisher listens to successful workflows, downloads one completed run's package artifact, and **does not compile or repackage anything**. It queues signed index updates (`queue: max`), retains previous entries and immutable package versions, and publishes by-hash Packages indexes followed by Release/InRelease. Existing Debian versions are never replaced: identical bytes are no-ops, while changed bytes produce a warning and retain the published copy. An intentional update must bump the Debian revision. Build fingerprints in the old R2 `publish-state.json` are historical and are not consulted or updated.
+Each package has **one** GitHub Actions job: build, verify, upload the GitHub artifact, then upload immutable `.deb` objects directly to R2. Already-indexed packages with an identical SHA-256 are no-ops; same-version/different-byte builds fail and require a revision bump.
+
+New or recovered uploads are recorded in durable `pending/<run-id>.json` manifests in R2. The serialized `publish-r2.yml` consumes these manifests, verifies the referenced objects, **only** regenerates and signs APT metadata, and removes markers after publishing `InRelease`. A failed index can be retried manually with the original build run ID, or with a blank run ID to reconcile all pending uploads, without rebuilding or uploading `.deb` files.
+
+A green package build means **built and uploaded to R2**, not necessarily indexed. The signing secret is used only in the index publisher. R2 credentials are passed only to the upload step.
 
 Each current PyPI distribution gets a distinct trigger; `scripts/build-pypi-debs --package <normalized-name>` builds only that entry. The legacy Pages publisher is manual fallback. Previous project phases below contain historical Pages plans rather than the active architecture.
 

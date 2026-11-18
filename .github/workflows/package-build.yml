@@ -14,6 +14,7 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-24.04
+    environment: github-pages
     steps:
       - uses: actions/checkout@v5
       - name: Install packaging prerequisites
@@ -164,3 +165,20 @@ jobs:
           if-no-files-found: error
           retention-days: 14
           compression-level: 0
+
+      - name: Upload immutable packages to R2 in this build job
+        env:
+          R2_BUCKET: mbligh-apt
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          AWS_EC2_METADATA_DISABLED: 'true'
+        run: |
+          set -euo pipefail
+          for value in R2_ACCOUNT_ID AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY; do
+            test -n "${!value}" || { echo "::error::Missing R2 upload secret: $value"; exit 1; }
+          done
+          python3 -m py_compile scripts/r2-publish
+          aws --version
+          python3 scripts/r2-publish stage "$GITHUB_RUN_ID"

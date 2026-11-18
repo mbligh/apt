@@ -6,8 +6,6 @@ on:
     paths:
       - 'pypi-packages.txt'
       - 'scripts/build-pypi-debs'
-      - '.github/workflows/package-pypi-roombapy-prime.yml'
-      - '.github/workflows/package-build.yml'
   workflow_dispatch:
 
 jobs:

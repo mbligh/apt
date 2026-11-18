@@ -6,8 +6,6 @@ on:
     paths:
       - 'pypi-packages.txt'
       - 'scripts/build-pypi-debs'
-      - '.github/workflows/package-pypi-duckdb.yml'
-      - '.github/workflows/package-build.yml'
   workflow_dispatch:
   schedule:
     - cron: '17 5 * * 0'

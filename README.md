@@ -6,9 +6,11 @@ See [project.md](project.md) for design decisions.
 
 ## Current CI pipeline
 
-Each package in `packages/<name>` has a corresponding `.github/workflows/package-<name>.yml` that builds when its files change, on manual dispatch, and (for moving upstream sources) on a schedule. Two PyPI entries have separate workflows. All call the common `package-build.yml` and upload successful `debian-packages` artifacts. A failed package does not block unrelated builds.
+Each package has **one** GitHub Actions job: build, verify, upload the GitHub artifact, then upload immutable `.deb` objects directly to R2. Already-indexed packages with an identical SHA-256 are no-ops; same-version/different-byte builds fail and require a revision bump.
 
-`publish-r2.yml` is triggered only by successful package workflows or manually with a completed build run ID. **It never builds packages.** It downloads the completed artifacts, uploads new immutable .deb objects to R2, then serially updates and signs the shared APT index. The publication queue uses `concurrency.queue: max` so simultaneous package builds are not lost. Publishing an already-indexed version is a no-op. If a rebuild has different bytes but the same version, the existing published bytes are retained with a warning; bump the Debian revision for a real update. Older package versions are retained.
+New or recovered uploads are recorded in durable `pending/<run-id>.json` manifests in R2. The serialized `publish-r2.yml` consumes these manifests, verifies the referenced objects, **only** regenerates and signs APT metadata, and removes markers after publishing `InRelease`. A failed index can be retried manually with the original build run ID, or with a blank run ID to reconcile all pending uploads, without rebuilding or uploading `.deb` files.
+
+A green package build means **built and uploaded to R2**, not necessarily indexed. The signing secret is used only in the index publisher. R2 credentials are passed only to the upload step.
 
 The legacy `publish-apt.yml` is a manual-only GitHub Pages fallback. The historical Pages-era notes below are superseded by this section.
 

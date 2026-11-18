@@ -25,7 +25,7 @@ on:
   workflow_dispatch:
     inputs:
       run_id:
-        description: Optional successful package build run ID
+        description: Optional build run ID (blank retries all pending uploads)
         type: string
         required: false
 
@@ -57,38 +57,20 @@ jobs:
       APT_SIGNING_KEY: ${{ secrets.APT_SIGNING_KEY }}
     steps:
       - uses: actions/checkout@v5
-      - name: Download package artifacts (no builds in publisher)
-        env:
-          GH_TOKEN: ${{ github.token }}
-          BUILD_RUN_ID: ${{ github.event.workflow_run.id || inputs.run_id }}
-        run: |
-          set -euo pipefail
-          mkdir -p dist
-          if [ -n "$BUILD_RUN_ID" ]; then
-            gh run download "$BUILD_RUN_ID" --repo "$GITHUB_REPOSITORY" --name debian-packages --dir dist
-          fi
-          if compgen -G 'dist/*.deb' >/dev/null; then
-            echo 'HAS_DEBS=1' >> "$GITHUB_ENV"
-            for deb in dist/*.deb; do
-              dpkg-deb --info "$deb"
-            done
-          else
-            echo "::notice::No new Debian artifacts in this run"
-            echo 'HAS_DEBS=0' >> "$GITHUB_ENV"
-          fi
-      - name: Install signing and archive tools
-        if: env.HAS_DEBS == '1'
+      - name: Prepare index publisher (no package uploads)
         run: |
           set -euo pipefail
           for value in R2_ACCOUNT_ID AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY APT_SIGNING_KEY; do
             test -n "${!value}" || { echo "::error::Missing secret: $value"; exit 1; }
           done
+          python3 -m py_compile scripts/r2-publish
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends dpkg-dev apt-utils gnupg curl
           aws --version
           echo "R2_ENDPOINT=https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com" >> "$GITHUB_ENV"
-      - name: Publish packages and signed APT metadata
-        if: env.HAS_DEBS == '1'
+      - name: Index staged R2 objects and sign APT metadata
+        env:
+          BUILD_RUN_ID: ${{ github.event.workflow_run.id || inputs.run_id }}
         run: |
           set -euo pipefail
           mkdir -p -m 700 "$HOME/.gnupg"
@@ -96,9 +78,8 @@ jobs:
           fingerprint="$(gpg --batch --with-colons --list-secret-keys | awk -F: '$1=="fpr" {print $10; exit}')"
           test -n "$fingerprint"
           export SIGNING_FINGERPRINT="$fingerprint"
-          python3 scripts/r2-publish publish
+          python3 scripts/r2-publish index "$BUILD_RUN_ID"
       - name: Verify public signed APT repository
-        if: env.HAS_DEBS == '1'
         run: |
           set -euo pipefail
           curl -fLsS --retry 3 https://apt.mbligh.org/dists/trixie/InRelease -o /tmp/r2-InRelease

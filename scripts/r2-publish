@@ -45,13 +45,16 @@ def get(key, dest):
     return True
 
 
-def put(path, key, *, cache=None, immutable=False):
+def put(path, key, *, cache=None, immutable=False, metadata=None):
     cmd = ["s3api", "put-object", "--bucket", BUCKET, "--key", key,
            "--body", str(path)]
     if cache:
         cmd += ["--cache-control", cache]
     if immutable:
         cmd += ["--if-none-match", "*"]
+    if metadata:
+        for name, value in metadata.items():
+            cmd += ["--metadata", name + "=" + value]
     result = aws(*cmd, check=False, capture=True)
     if result.returncode:
         if immutable and ("PreconditionFailed" in result.stderr or "412" in result.stderr):
@@ -136,75 +139,167 @@ def deb_stanza(deb):
         "\nSHA256: " + digest(deb))
 
 
-def publish():
+
+def head(key):
+    result = aws("s3api", "head-object", "--bucket", BUCKET, "--key", key,
+                 check=False, capture=True)
+    if result.returncode:
+        if any(code in result.stderr for code in ("404", "Not Found", "NoSuchKey")):
+            return None
+        raise RuntimeError(result.stderr)
+    return json.loads(result.stdout)
+
+
+def verify_object(key, sha256, size):
+    info = head(key)
+    if info is None:
+        return False
+    if int(info["ContentLength"]) != size:
+        raise RuntimeError("Existing R2 object has different size: " + key)
+    recorded = info.get("Metadata", {}).get("sha256")
+    if recorded:
+        if recorded != sha256:
+            raise RuntimeError("Version conflict: same R2 key, different SHA-256: " + key)
+    else:
+        # Old R2 objects lack SHA metadata; verify the bytes once.
+        with tempfile.TemporaryDirectory() as tmp:
+            existing = Path(tmp) / "object.deb"
+            if not get(key, existing) or digest(existing) != sha256:
+                raise RuntimeError("Version conflict: R2 object differs: " + key)
+    return True
+
+
+def load_index(temp):
+    old_index = temp / "old-Packages"
+    if get(INDEX, old_index):
+        return {f["Filename"]: (f, e)
+                for f, e in stanzas(old_index.read_bytes())}
+    if read_state() is not None:
+        raise RuntimeError("R2 manifest exists but Packages index is absent")
+    return {}
+
+
+def stage(run_id):
+    """Upload package files in the individual package build job."""
+    if not re.fullmatch(r"[0-9]+", run_id):
+        raise ValueError("stage requires a numeric GitHub run ID")
+    with tempfile.TemporaryDirectory() as tmp:
+        temp = Path(tmp)
+        old = load_index(temp)
+        pending = []
+        for deb in sorted(DIST.glob("*.deb")):
+            fields, stanza = deb_stanza(deb)
+            identity = run("dpkg-deb", "-f", str(deb),
+                           "Package", "Version", "Architecture",
+                           capture_output=True, text=True).stdout.splitlines()
+            if len(identity) != 3 or deb.name != "_".join(identity) + ".deb":
+                raise RuntimeError("Debian control fields disagree with filename: " + deb.name)
+            key, sha = fields["Filename"], fields["SHA256"]
+            size = deb.stat().st_size
+            if key in old:
+                if old[key][0]["SHA256"] != sha:
+                    raise RuntimeError("Version conflict: published .deb differs: " + key)
+                print("Already indexed with identical SHA-256:", key)
+                continue
+            if not verify_object(key, sha, size):
+                if not put(deb, key, immutable=True, metadata={"sha256": sha}):
+                    # Someone else uploaded this version first.
+                    if not verify_object(key, sha, size):
+                        raise RuntimeError("R2 upload race: missing object: " + key)
+                print("Uploaded or verified immutable object:", key)
+            else:
+                print("Recovering previously uploaded unindexed object:", key)
+            if not verify_object(key, sha, size):
+                raise RuntimeError("R2 upload verification failed: " + key)
+            pending.append({"key": key, "sha256": sha, "size": size, "stanza": stanza})
+        if not pending:
+            print("No changed packages to publish")
+            return
+        marker = "pending/" + run_id + ".json"
+        manifest = temp / "manifest.json"
+        manifest.write_text(json.dumps({"version": 1, "run_id": run_id,
+                                        "entries": pending}, sort_keys=True) + "\n")
+        if not put(manifest, marker, immutable=True):
+            existing = temp / "old-manifest.json"
+            if not get(marker, existing) or json.loads(existing.read_text()) != json.loads(manifest.read_text()):
+                raise RuntimeError("Conflicting pending manifest: " + marker)
+        print("Staged", len(pending), "package(s) under", marker)
+
+
+def pending_keys(run_id):
+    if run_id:
+        if not re.fullmatch(r"[0-9]+", run_id):
+            raise ValueError("index requires numeric build run ID")
+        return ["pending/" + run_id + ".json"]
+    result = aws("s3api", "list-objects-v2", "--bucket", BUCKET,
+                 "--prefix", "pending/", "--output", "json", capture=True)
+    return sorted(x["Key"] for x in json.loads(result.stdout).get("Contents", [])
+                  if re.fullmatch(r"pending/[0-9]+\.json", x["Key"]))
+
+
+def retire_pending(keys):
+    for key in keys:
+        aws("s3api", "delete-object", "--bucket", BUCKET, "--key", key)
+
+
+def index(run_id):
+    """Only sign an index of already-uploaded R2 package objects."""
     with tempfile.TemporaryDirectory() as d:
         temp = Path(d)
-        old_index = temp / "old-Packages"
-        old = {}
-        if get(INDEX, old_index):
-            for fields, entry in stanzas(old_index.read_bytes()):
-                old[fields["Filename"]] = (fields, entry)
-        elif read_state() is not None:
-            raise RuntimeError("R2 manifest exists but Packages index is absent")
-
-        entries = dict(old)
-        new_count = 0
-        DIST.mkdir(exist_ok=True)
-        for deb in sorted(DIST.glob("*.deb")):
-            fields, entry = deb_stanza(deb)
-            key = fields["Filename"]
-            if key in entries:
-                if entries[key][0]["SHA256"] != fields["SHA256"]:
-                    # Rebuilt .debs may differ byte-for-byte even if their
-                    # Debian version is unchanged (timestamps, build inputs).
-                    # Never overwrite published bytes or repoint that version.
-                    # Warn, retain the original, and let independent releases
-                    # continue. An intentional change must bump the version.
-                    print("WARNING: Different bytes for already published version;"
-                          " keeping existing package (bump revision to update):", key)
-                else:
-                    print("Already published:", key)
+        markers = []
+        pending = []
+        for marker in pending_keys(run_id):
+            path = temp / ("manifest-" + str(len(markers)) + ".json")
+            if not get(marker, path):
+                if run_id:
+                    print("No pending publication for run", run_id)
+                    return
                 continue
-            if key not in old:
-                # Put before making it visible in the signed index.
-                if not put(deb, key, immutable=True):
-                    # An interrupted run may have uploaded the .deb before
-                    # its signed index. Treat that immutable R2 object as
-                    # authoritative, even if a later rebuild has different
-                    # bytes due to nondeterminism. Never overwrite it.
-                    existing = temp / "existing" / deb.name
-                    if not get(key, existing):
-                        raise RuntimeError("Unindexed package disappeared: " + key)
-                    stored_fields, stored_entry = deb_stanza(existing)
-                    if stored_fields["Filename"] != key:
-                        raise RuntimeError("Unexpected R2 object filename: " + key)
-                    def identity(package):
-                        control = run("dpkg-deb", "-f", str(package),
-                                      capture_output=True, text=True).stdout
-                        result = {}
-                        for line in control.splitlines():
-                            for field in ("Package", "Version", "Architecture"):
-                                if line.startswith(field + ": "):
-                                    result[field] = line[len(field) + 2:]
-                        return result
-                    expected = identity(deb)
-                    if (identity(existing) != expected or
-                            not all(expected.get(k) for k in
-                                    ("Package", "Version", "Architecture"))):
-                        raise RuntimeError("Conflicting R2 package identity: " + key)
-                    if stored_fields["SHA256"] != fields["SHA256"]:
-                        print("WARNING: Using immutable previously uploaded bytes"
-                              " rather than different later rebuild:", key)
-                    else:
-                        print("Reusing matching previously uploaded package:", key)
-                    fields, entry = stored_fields, stored_entry
-                new_count += 1
-            entries[key] = fields, entry
+            data = json.loads(path.read_text())
+            if (data.get("version") != 1 or
+                    marker != "pending/" + str(data.get("run_id")) + ".json" or
+                    not isinstance(data.get("entries"), list)):
+                raise RuntimeError("Invalid pending manifest: " + marker)
+            markers.append(marker)
+            pending.extend(data["entries"])
+        if not pending:
+            print("No pending packages to index")
+            retire_pending(markers)
+            return
 
+        entries = load_index(temp)
+        added = 0
+        for item in pending:
+            key, sha, size, stanza = (
+                item["key"], item["sha256"], item["size"], item["stanza"])
+            if (not isinstance(key, str) or
+                    not re.fullmatch(r"pool/main/[A-Za-z0-9][A-Za-z0-9+._:%~-]*\.deb", key) or
+                    ".." in key or
+                    not isinstance(sha, str) or not re.fullmatch(r"[0-9a-f]{64}", sha) or
+                    not isinstance(size, int) or size <= 0):
+                raise RuntimeError("Invalid pending package: " + str(key))
+            decoded = list(stanzas((stanza + "\n\n").encode()))
+            if len(decoded) != 1:
+                raise RuntimeError("Invalid pending APT stanza: " + key)
+            fields, entry = decoded[0]
+            if (fields["Filename"] != key or fields.get("SHA256") != sha or
+                    fields.get("Size") != str(size) or
+                    any(not fields.get(f) for f in ("Package", "Version", "Architecture"))):
+                raise RuntimeError("Pending package metadata mismatch: " + key)
+            if not verify_object(key, sha, size):
+                raise RuntimeError("Missing staged package in R2: " + key)
+            if key in entries:
+                if entries[key][0]["SHA256"] != sha:
+                    raise RuntimeError("Indexed version has different SHA-256: " + key)
+                print("Already indexed:", key)
+                continue
+            entries[key] = (fields, entry)
+            added += 1
         if not entries:
             raise RuntimeError("Refusing to publish empty APT repository")
-        if new_count == 0:
-            print("All supplied package versions are already published; nothing to change")
+        if not added:
+            print("All pending packages are already indexed")
+            retire_pending(markers)
             return
         site = temp / "site"
         binary = site / "dists/trixie/main/binary-amd64"
@@ -256,8 +351,18 @@ def publish():
         for p in (index, gz, public, release, sig, inrelease):
             key = str(p.relative_to(site))
             put(p, key, cache="no-cache, must-revalidate")
-        print("Published", len(entries), "package files to R2")
+        # Retire manifests only after InRelease (the publication commit point).
+        retire_pending(markers)
+        print("Indexed", added, "new package objects; total", len(entries))
 
 
 if __name__ == "__main__":
-    {"bootstrap": bootstrap, "publish": publish}[sys.argv[1]]()
+    action = sys.argv[1]
+    if action == "bootstrap":
+        bootstrap()
+    elif action == "stage":
+        stage(sys.argv[2])
+    elif action == "index":
+        index(sys.argv[2] if len(sys.argv) > 2 else "")
+    else:
+        raise SystemExit("Usage: r2-publish {bootstrap|stage RUN_ID|index [RUN_ID]}")
