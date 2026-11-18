@@ -19,42 +19,25 @@ jobs:
           node-version: '24'
       - name: Build packages
         run: |
-          echo "::group::Build deno"
-          sh packages/deno/build.sh
-          echo "::endgroup::"
-          echo "::group::Build pmtiles"
-          sh packages/pmtiles/build.sh
-          echo "::endgroup::"
-          echo "::group::Build ytdl-sub"
-          sh packages/ytdl-sub/build.sh
-          echo "::endgroup::"
-          echo "::group::Build perccli"
-          sh packages/perccli/build.sh
-          echo "::endgroup::"
-          echo "::group::Build racadm"
-          sh packages/racadm/build.sh
-          echo "::endgroup::"
-          echo "::group::Build sfutils"
-          sh packages/sfutils/build.sh
-          echo "::endgroup::"
-          echo "::group::Build yt-dlp-sabr"
-          sh packages/yt-dlp-sabr/build.sh
-          echo "::endgroup::"
-          echo "::group::Build nodejs24"
-          sh packages/nodejs24/build.sh
-          echo "::endgroup::"
-          echo "::group::Build desktop-commander"
-          sh packages/desktop-commander/build.sh
-          echo "::endgroup::"
-          echo "::group::Build imapsync"
-          sh packages/imapsync/build.sh
-          echo "::endgroup::"
-          echo "::group::Build radarr"
-          sh packages/radarr/build.sh
-          echo "::endgroup::"
-          echo "::group::Build sonarr"
-          sh packages/sonarr/build.sh
-          echo "::endgroup::"
+          build_package() {
+            local name="$1" rc=0
+            echo "::group::Build $name"
+            sh "packages/$name/build.sh" || rc=$?
+            echo "::endgroup::"
+            return "$rc"
+          }
+          build_package deno
+          build_package pmtiles
+          build_package ytdl-sub
+          build_package perccli
+          build_package racadm
+          build_package sfutils
+          build_package yt-dlp-sabr
+          build_package nodejs24
+          build_package desktop-commander
+          build_package imapsync
+          build_package radarr
+          build_package sonarr
       - name: Verify Solarflare utilities on Debian 13
         run: |
           docker run --rm -v "$PWD/dist:/pkgs:ro" debian:trixie sh -ec '
