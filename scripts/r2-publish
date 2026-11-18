@@ -103,6 +103,24 @@ def read_state():
         return json.loads(p.read_text())
 
 
+def publication_fingerprints():
+    """Keep skipped optional packages pending for a future publication."""
+    current = fingerprints()
+    skipped_path = Path("/tmp/r2-skipped-packages")
+    if not skipped_path.is_file():
+        return current
+    previous = (read_state() or {}).get("fingerprints", {})
+    for name in sorted(set(skipped_path.read_text().splitlines())):
+        if name not in current:
+            raise RuntimeError("Unexpected skipped package: " + name)
+        if name in previous:
+            current[name] = previous[name]
+        else:
+            current.pop(name)
+        print("Deferred optional package until next run:", name)
+    return current
+
+
 def plan():
     state = read_state()
     current = fingerprints()
@@ -254,7 +272,7 @@ def publish():
             put(p, key, cache="no-cache, must-revalidate")
         # Store build fingerprints only *after* the published index is available.
         state = temp / STATE
-        state.write_text(json.dumps({"fingerprints": fingerprints()}, indent=2) + "\n")
+        state.write_text(json.dumps({"fingerprints": publication_fingerprints()}, indent=2) + "\n")
         put(state, STATE, cache="no-store")
         print("Published", len(entries), "package files to R2")
 
