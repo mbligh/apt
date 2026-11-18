@@ -168,12 +168,36 @@ def publish():
             if key not in old:
                 # Put before making it visible in the signed index.
                 if not put(deb, key, immutable=True):
-                    # An earlier interrupted run may have uploaded the object
-                    # before publishing its index. Reuse only identical bytes.
-                    existing = temp / "existing-package.deb"
-                    if not get(key, existing) or digest(existing) != fields["SHA256"]:
-                        raise RuntimeError("Conflicting unindexed package object: " + key)
-                    print("Reusing matching previously uploaded package:", key)
+                    # An interrupted run may have uploaded the .deb before
+                    # its signed index. Treat that immutable R2 object as
+                    # authoritative, even if a later rebuild has different
+                    # bytes due to nondeterminism. Never overwrite it.
+                    existing = temp / "existing" / deb.name
+                    if not get(key, existing):
+                        raise RuntimeError("Unindexed package disappeared: " + key)
+                    stored_fields, stored_entry = deb_stanza(existing)
+                    if stored_fields["Filename"] != key:
+                        raise RuntimeError("Unexpected R2 object filename: " + key)
+                    def identity(package):
+                        control = run("dpkg-deb", "-f", str(package),
+                                      capture_output=True, text=True).stdout
+                        result = {}
+                        for line in control.splitlines():
+                            for field in ("Package", "Version", "Architecture"):
+                                if line.startswith(field + ": "):
+                                    result[field] = line[len(field) + 2:]
+                        return result
+                    expected = identity(deb)
+                    if (identity(existing) != expected or
+                            not all(expected.get(k) for k in
+                                    ("Package", "Version", "Architecture"))):
+                        raise RuntimeError("Conflicting R2 package identity: " + key)
+                    if stored_fields["SHA256"] != fields["SHA256"]:
+                        print("WARNING: Using immutable previously uploaded bytes"
+                              " rather than different later rebuild:", key)
+                    else:
+                        print("Reusing matching previously uploaded package:", key)
+                    fields, entry = stored_fields, stored_entry
                 new_count += 1
             entries[key] = fields, entry
 
