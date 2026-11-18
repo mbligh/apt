@@ -19,18 +19,42 @@ jobs:
           node-version: '24'
       - name: Build packages
         run: |
+          echo "::group::Build deno"
           sh packages/deno/build.sh
+          echo "::endgroup::"
+          echo "::group::Build pmtiles"
           sh packages/pmtiles/build.sh
+          echo "::endgroup::"
+          echo "::group::Build ytdl-sub"
           sh packages/ytdl-sub/build.sh
+          echo "::endgroup::"
+          echo "::group::Build perccli"
           sh packages/perccli/build.sh
+          echo "::endgroup::"
+          echo "::group::Build racadm"
           sh packages/racadm/build.sh
+          echo "::endgroup::"
+          echo "::group::Build sfutils"
           sh packages/sfutils/build.sh
+          echo "::endgroup::"
+          echo "::group::Build yt-dlp-sabr"
           sh packages/yt-dlp-sabr/build.sh
+          echo "::endgroup::"
+          echo "::group::Build nodejs24"
           sh packages/nodejs24/build.sh
+          echo "::endgroup::"
+          echo "::group::Build desktop-commander"
           sh packages/desktop-commander/build.sh
+          echo "::endgroup::"
+          echo "::group::Build imapsync"
           sh packages/imapsync/build.sh
+          echo "::endgroup::"
+          echo "::group::Build radarr"
           sh packages/radarr/build.sh
+          echo "::endgroup::"
+          echo "::group::Build sonarr"
           sh packages/sonarr/build.sh
+          echo "::endgroup::"
       - name: Verify Solarflare utilities on Debian 13
         run: |
           docker run --rm -v "$PWD/dist:/pkgs:ro" debian:trixie sh -ec '
