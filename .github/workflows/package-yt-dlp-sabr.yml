@@ -1,5 +1,9 @@
 name: Build yt-dlp-sabr
 
+permissions:
+  contents: read
+  actions: write  # Allow the reusable build to dispatch index publication
+
 on:
   push:
     branches: [main]

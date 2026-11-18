@@ -1,27 +1,6 @@
 name: Publish APT repository to Cloudflare R2
 
 on:
-  workflow_run:
-    workflows:
-      - 'Build deno'
-      - 'Build desktop-commander'
-      - 'Build imapsync'
-      - 'Build mbligh-tools'
-      - 'Build metube'
-      - 'Build nodejs24'
-      - 'Build perccli'
-      - 'Build pmtiles'
-      - 'Build racadm'
-      - 'Build radarr'
-      - 'Build rtach'
-      - 'Build sfutils'
-      - 'Build sonarr'
-      - 'Build yt-dlp-sabr'
-      - 'Build ytdl-sub'
-      - 'Build pypi-roombapy-prime'
-      - 'Build pypi-duckdb'
-    types: [completed]
-    branches: [main]
   workflow_dispatch:
     inputs:
       run_id:
@@ -41,10 +20,6 @@ concurrency:
 
 jobs:
   publish:
-    if: >-
-      github.event_name == 'workflow_dispatch' ||
-      (github.event.workflow_run.conclusion == 'success' &&
-       github.event.workflow_run.head_repository.full_name == github.repository)
     runs-on: ubuntu-24.04
     environment: github-pages
     env:
@@ -70,7 +45,7 @@ jobs:
           echo "R2_ENDPOINT=https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com" >> "$GITHUB_ENV"
       - name: Index staged R2 objects and sign APT metadata
         env:
-          BUILD_RUN_ID: ${{ github.event.workflow_run.id || inputs.run_id }}
+          BUILD_RUN_ID: ${{ inputs.run_id }}
         run: |
           set -euo pipefail
           mkdir -p -m 700 "$HOME/.gnupg"

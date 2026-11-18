@@ -10,6 +10,8 @@ Each package has **one** GitHub Actions job: build, verify, upload the GitHub ar
 
 New or recovered uploads are recorded in durable `pending/<run-id>.json` manifests in R2. The serialized `publish-r2.yml` consumes these manifests, verifies the referenced objects, **only** regenerates and signs APT metadata, and removes markers after publishing `InRelease`. A failed index can be retried manually with the original build run ID, or with a blank run ID to reconcile all pending uploads, without rebuilding or uploading `.deb` files.
 
+The package job starts `publish-r2.yml` using `workflow_dispatch` **only after** `scripts/r2-publish stage` records at least one unindexed package. An unchanged build still succeeds and retains its GitHub artifact, but no index job starts. A failed upload or dispatch fails the package job. Pending R2 manifests survive interruptions and can be indexed manually; GitHub Actions no longer starts the publisher on every successful package workflow completion.
+
 A green package build means **built and uploaded to R2**, not necessarily indexed. The signing secret is used only in the index publisher. R2 credentials are passed only to the upload step.
 
 The legacy `publish-apt.yml` is a manual-only GitHub Pages fallback. The historical Pages-era notes below are superseded by this section.

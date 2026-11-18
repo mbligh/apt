@@ -217,7 +217,7 @@ def stage(run_id):
             pending.append({"key": key, "sha256": sha, "size": size, "stanza": stanza})
         if not pending:
             print("No changed packages to publish")
-            return
+            return False
         marker = "pending/" + run_id + ".json"
         manifest = temp / "manifest.json"
         manifest.write_text(json.dumps({"version": 1, "run_id": run_id,
@@ -227,6 +227,7 @@ def stage(run_id):
             if not get(marker, existing) or json.loads(existing.read_text()) != json.loads(manifest.read_text()):
                 raise RuntimeError("Conflicting pending manifest: " + marker)
         print("Staged", len(pending), "package(s) under", marker)
+        return True
 
 
 def pending_keys(run_id):
@@ -364,7 +365,10 @@ if __name__ == "__main__":
     if action == "bootstrap":
         bootstrap()
     elif action == "stage":
-        stage(sys.argv[2])
+        changed = stage(sys.argv[2])
+        if os.environ.get("GITHUB_OUTPUT"):
+            with open(os.environ["GITHUB_OUTPUT"], "a") as out:
+                out.write("changed=" + ("true" if changed else "false") + "\n")
     elif action == "index":
         index(sys.argv[2] if len(sys.argv) > 2 else "")
     else:

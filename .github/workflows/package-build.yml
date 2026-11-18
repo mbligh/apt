@@ -10,6 +10,7 @@ on:
 
 permissions:
   contents: read
+  actions: write  # Dispatch the index publisher only for staged packages
 
 jobs:
   build:
@@ -167,6 +168,7 @@ jobs:
           compression-level: 0
 
       - name: Upload immutable packages to R2 in this build job
+        id: stage
         env:
           R2_BUCKET: mbligh-apt
           R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
@@ -182,3 +184,12 @@ jobs:
           python3 -m py_compile scripts/r2-publish
           aws --version
           python3 scripts/r2-publish stage "$GITHUB_RUN_ID"
+
+      - name: Request signed APT index update
+        if: steps.stage.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh workflow run publish-r2.yml --repo "$GITHUB_REPOSITORY" \
+            --ref main --field "run_id=$GITHUB_RUN_ID"
