@@ -65,12 +65,7 @@ case "$deb_version" in
   *) echo "Unexpected Debian package version: $deb_version" >&2; exit 1 ;;
 esac
 dpkg-deb --contents "$1" > "$tmp/deb-contents"
-grep -Eq '\./usr/(sbin|bin)/sfupdate
-  echo "Converted Debian package lacks sfupdate" >&2; exit 1;
-}
-mkdir -p dist
-cp "$1" dist/
- "$tmp/deb-contents" || {
+grep -Eq '\./usr/(sbin|bin)/sfupdate$' "$tmp/deb-contents" || {
   echo "Converted Debian package lacks sfupdate" >&2; exit 1;
 }
 mkdir -p dist
