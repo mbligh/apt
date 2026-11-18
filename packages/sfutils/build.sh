@@ -6,6 +6,7 @@ set -eu
 cd "$(dirname "$0")/../.."
 
 VERSION=8.3.4.1000
+REVISION=2
 ARCHIVE=SF-107601-LS-76-Solarflare-Linux-Utilities-RPM-64bit.zip
 URL=https://www.amd.com/content/dam/amd/en/support/downloads/solarflare/firmware-utilities/8-3-4-1000/$ARCHIVE
 
@@ -68,5 +69,12 @@ dpkg-deb --contents "$1" > "$tmp/deb-contents"
 grep -Eq '\./usr/(sbin|bin)/sfupdate$' "$tmp/deb-contents" || {
   echo "Converted Debian package lacks sfupdate" >&2; exit 1;
 }
+# Publish a new Debian revision rather than overwriting the immutable -1 package.
+# Normalize mtimes and ownership to keep repeat builds byte-for-byte stable.
+repack="$tmp/repack"
+dpkg-deb --raw-extract "$1" "$repack"
+sed -i "s/^Version: .*/Version: ${VERSION}-${REVISION}/" "$repack/DEBIAN/control"
+export SOURCE_DATE_EPOCH=1794873600
+find "$repack" -exec touch -h -d "@$SOURCE_DATE_EPOCH" {} +
 mkdir -p dist
-cp "$1" dist/
+dpkg-deb --build --root-owner-group "$repack" "dist/sfutils_${VERSION}-${REVISION}_amd64.deb"
