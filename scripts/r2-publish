@@ -215,7 +215,12 @@ def publish():
             if key not in old:
                 # Put before making it visible in the signed index.
                 if not put(deb, key, immutable=True):
-                    raise RuntimeError("Package object already exists but is not indexed: " + key)
+                    # An earlier interrupted run may have uploaded the object
+                    # before publishing its index. Reuse only identical bytes.
+                    existing = temp / "existing-package.deb"
+                    if not get(key, existing) or digest(existing) != fields["SHA256"]:
+                        raise RuntimeError("Conflicting unindexed package object: " + key)
+                    print("Reusing matching previously uploaded package:", key)
             entries[key] = fields, entry
 
         if not entries:
