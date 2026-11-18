@@ -10,6 +10,7 @@ SOURCE_COMMIT=372fefbaa051e240f3923bad480294a4f65718b7
 ZIG_VERSION=0.16.0
 ZIG_SHA256=70e49664a74374b48b51e6f3fdfbf437f6395d42509050588bd49abe52ba3d00
 
+echo "Building rtach ${VERSION}-${REVISION} from upstream commit $SOURCE_COMMIT"
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT HUP INT TERM
 
