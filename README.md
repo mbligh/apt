@@ -1,8 +1,17 @@
 # mbligh Debian APT repository
 
-Signed Debian 13 (trixie) packages for amd64, published using GitHub Pages.
+Signed Debian 13 (trixie) packages for amd64, published to Cloudflare R2.
 
 See [project.md](project.md) for design decisions.
+
+## Current CI pipeline
+
+Each package in `packages/<name>` has a corresponding `.github/workflows/package-<name>.yml` that builds when its files change, on manual dispatch, and (for moving upstream sources) on a schedule. Two PyPI entries have separate workflows. All call the common `package-build.yml` and upload successful `debian-packages` artifacts. A failed package does not block unrelated builds.
+
+`publish-r2.yml` is triggered only by successful package workflows or manually with a completed build run ID. **It never builds packages.** It downloads the completed artifacts, uploads new immutable .deb objects to R2, then serially updates and signs the shared APT index. The publication queue uses `concurrency.queue: max` so simultaneous package builds are not lost. Publishing an already-indexed identical package is a no-op. Older package versions are retained.
+
+The legacy `publish-apt.yml` is a manual-only GitHub Pages fallback. The historical Pages-era notes below are superseded by this section.
+
 
 ## Packages
 

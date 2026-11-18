@@ -1,29 +1,50 @@
 name: Publish APT repository to Cloudflare R2
 
 on:
-  workflow_dispatch:
-  push:
+  workflow_run:
+    workflows:
+      - 'Build deno'
+      - 'Build desktop-commander'
+      - 'Build imapsync'
+      - 'Build mbligh-tools'
+      - 'Build metube'
+      - 'Build nodejs24'
+      - 'Build perccli'
+      - 'Build pmtiles'
+      - 'Build racadm'
+      - 'Build radarr'
+      - 'Build rtach'
+      - 'Build sfutils'
+      - 'Build sonarr'
+      - 'Build yt-dlp-sabr'
+      - 'Build ytdl-sub'
+      - 'Build pypi-roombapy-prime'
+      - 'Build pypi-duckdb'
+    types: [completed]
     branches: [main]
-    paths:
-      - 'packages/**'
-      - 'pypi-packages.txt'
-      - 'scripts/build-pypi-debs'
-      - 'scripts/r2-publish'
-      - '.github/workflows/publish-r2.yml'
-  # Also pick up tools/g changes without having to push to this repository.
-  schedule:
-    - cron: '23 */6 * * *'
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: Optional successful package build run ID
+        type: string
+        required: false
 
 permissions:
   contents: read
   actions: read
 
+# Queue metadata updates instead of dropping pending publications.
 concurrency:
   group: apt-r2-publish
   cancel-in-progress: false
+  queue: max
 
 jobs:
   publish:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_repository.full_name == github.repository)
     runs-on: ubuntu-24.04
     environment: github-pages
     env:
@@ -36,172 +57,48 @@ jobs:
       APT_SIGNING_KEY: ${{ secrets.APT_SIGNING_KEY }}
     steps:
       - uses: actions/checkout@v5
-      - name: Require read-only deploy key for private tools source
+      - name: Download package artifacts (no builds in publisher)
         env:
-          TOOLS_DEPLOY_KEY: ${{ secrets.TOOLS_DEPLOY_KEY }}
-        run: |
-          if [ -z "$TOOLS_DEPLOY_KEY" ]; then
-            echo "::error::Set TOOLS_DEPLOY_KEY (read-only SSH deploy key for mbligh/tools)."
-            exit 1
-          fi
-      - name: Checkout private tools/g
-        uses: actions/checkout@v5
-        with:
-          repository: mbligh/tools
-          ref: master
-          ssh-key: ${{ secrets.TOOLS_DEPLOY_KEY }}
-          path: private-tools
-          persist-credentials: false
-          fetch-depth: 0
-          sparse-checkout: |
-            tools/g
-          sparse-checkout-cone-mode: false
-      - name: Stage tools/g and its source-derived Debian version
+          GH_TOKEN: ${{ github.token }}
+          BUILD_RUN_ID: ${{ github.event.workflow_run.id || inputs.run_id }}
         run: |
           set -euo pipefail
-          test -f private-tools/tools/g
-          commit="$(git -C private-tools log -1 --format=%H -- tools/g)"
-          timestamp="$(git -C private-tools log -1 --format=%ct -- tools/g)"
-          test -n "$commit" && test -n "$timestamp"
-          version="0.$(date -u -d "@$timestamp" +%Y%m%d%H%M%S)+git${commit:0:12}-1"
-          install -m 644 private-tools/tools/g packages/mbligh-tools/upstream-g
-          printf '%s\n' "$version" > packages/mbligh-tools/upstream-version
-          echo "Packaging tools/g at $commit as mbligh-tools $version"
-      - name: Validate configuration and install tools
+          mkdir -p dist
+          if [ -n "$BUILD_RUN_ID" ]; then
+            gh run download "$BUILD_RUN_ID" --repo "$GITHUB_REPOSITORY" --name debian-packages --dir dist
+          fi
+          if compgen -G 'dist/*.deb' >/dev/null; then
+            echo 'HAS_DEBS=1' >> "$GITHUB_ENV"
+            for deb in dist/*.deb; do
+              dpkg-deb --info "$deb"
+            done
+          else
+            echo "::notice::No new Debian artifacts in this run"
+            echo 'HAS_DEBS=0' >> "$GITHUB_ENV"
+          fi
+      - name: Install signing and archive tools
+        if: env.HAS_DEBS == '1'
         run: |
           set -euo pipefail
           for value in R2_ACCOUNT_ID AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY APT_SIGNING_KEY; do
             test -n "${!value}" || { echo "::error::Missing secret: $value"; exit 1; }
           done
           sudo apt-get update
-          sudo apt-get install -y dpkg-dev apt-utils gnupg unzip curl alien rpm fakeroot
+          sudo apt-get install -y --no-install-recommends dpkg-dev apt-utils gnupg curl
           aws --version
-          python3 --version
-          test -f scripts/build-pypi-debs
-          test -f packages/imapsync/build.sh
-          test -f packages/racadm/build.sh
-          test -f packages/sfutils/build.sh
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '24'
-      - uses: actions/setup-python@v6
-        with:
-          python-version: '3.13'
-      - name: Read published build manifest
-        run: |
-          set -euo pipefail
           echo "R2_ENDPOINT=https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com" >> "$GITHUB_ENV"
-          python3 -c 'import os,re; a=os.environ["R2_ACCOUNT_ID"]; assert re.fullmatch(r"[a-fA-F0-9]{32}",a), f"R2_ACCOUNT_ID must be 32 hex characters (got length {len(a)})"'
-          curl --head --silent --show-error --max-time 15 "https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com/" >/dev/null
-          python3 scripts/r2-publish plan
-      - name: Fetch Debian index only if PyPI packages need rebuilding
-        run: |
-          if test -e /tmp/r2-build-pypi; then
-            curl -fLsS --retry 3 https://deb.debian.org/debian/dists/trixie/main/binary-amd64/Packages.xz -o /tmp/debian-trixie-Packages.xz
-          fi
-      - name: Build changed packages
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          mkdir -p dist
-          while read -r name; do
-            test -n "$name" || continue
-            echo "Building $name"
-            if sh "packages/$name/build.sh"; then
-              :
-            else
-              rc=$?
-              if [ "$name" = yt-dlp-sabr ] && [ "$rc" -eq 75 ]; then
-                echo "::warning title=yt-dlp-sabr unavailable::Skipping upstream download; will retry on the next publication"
-                printf '%s\n' "$name" >> /tmp/r2-skipped-packages
-                continue
-              fi
-              exit "$rc"
-            fi
-          done < /tmp/r2-build-packages
-          if test -e /tmp/r2-build-pypi; then
-            python -m venv /tmp/pypi-packager
-            /tmp/pypi-packager/bin/pip install 'pip>=24,<27'
-            /tmp/pypi-packager/bin/python scripts/build-pypi-debs --debian-packages /tmp/debian-trixie-Packages.xz
-          fi
-      - name: Smoke-test mbligh-tools when rebuilt
-        run: |
-          set -euo pipefail
-          if compgen -G 'dist/mbligh-tools_*.deb' >/dev/null; then
-            sudo apt-get install -y ./dist/mbligh-tools_*.deb
-            test -x /usr/bin/g
-            scratch="$(mktemp -d)"
-            trap 'rm -rf "$scratch"' EXIT
-            git init -q "$scratch"
-            (
-              cd "$scratch"
-              printf 'test\n' > abc
-              git add abc
-              g mv abc def
-              test -f def && test ! -e abc
-              git ls-files --error-unmatch def
-              test "$(g rev-parse --is-inside-work-tree)" = true
-            )
-          fi
-      - name: Verify Solarflare utilities on Debian 13 when rebuilt
-        run: |
-          set -euo pipefail
-          if compgen -G 'dist/sfutils_*.deb' >/dev/null; then
-            docker run --rm -v "$PWD/dist:/pkgs:ro" debian:trixie sh -ec '
-              apt-get update -qq
-              apt-get install -y --no-install-recommends /pkgs/sfutils_*.deb
-              command -v sfupdate
-              command -v sfboot
-            '
-          fi
-      - name: Verify RACADM dependencies against Debian 13 when rebuilt
-        run: |
-          set -euo pipefail
-          if compgen -G 'dist/srvadmin-idracadm8*.deb' >/dev/null; then
-            docker run --rm -v "$PWD/dist:/pkgs:ro" debian:trixie sh -ec '
-              apt-get update -qq
-              apt-get -s install /pkgs/srvadmin-hapi*.deb /pkgs/srvadmin-idracadm7*.deb /pkgs/srvadmin-idracadm8*.deb
-            '
-          fi
-      - name: Verify ytdl-sub on Debian 13 when rebuilt
-        run: |
-          set -euo pipefail
-          if compgen -G 'dist/ytdl-sub_*.deb' >/dev/null; then
-            docker run --rm -v "$PWD/dist:/pkgs:ro" debian:trixie sh -ec '
-              apt-get update -qq
-              apt-get install -y --no-install-recommends /pkgs/ytdl-sub_*.deb
-              test -x /usr/lib/ytdl-sub/ytdl-sub
-              test -f /etc/ssl/certs/ca-certificates.crt
-              sh -n /usr/bin/ytdl-sub
-              grep -Fq "SSL_CERT_FILE:=/etc/ssl/certs/ca-certificates.crt" /usr/bin/ytdl-sub
-              env -u SSL_CERT_FILE timeout 60 ytdl-sub -h >/tmp/ytdl-sub-help.txt
-              test -s /tmp/ytdl-sub-help.txt
-            '
-          fi
-      - name: Import existing Pages archive on first publication
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          if test -e /tmp/r2-initial; then
-            mkdir -p /tmp/legacy-pages/site
-            gh run download 42872455165 --repo mbligh/apt --name github-pages --dir /tmp/legacy-pages
-            tar -xf /tmp/legacy-pages/artifact.tar -C /tmp/legacy-pages/site
-            APT_MIGRATION_DIR=/tmp/legacy-pages/site python3 scripts/r2-publish bootstrap
-          else
-            echo "Existing R2 publication found; skipping legacy archive import"
-          fi
-      - name: Publish packages and APT indexes
+      - name: Publish packages and signed APT metadata
+        if: env.HAS_DEBS == '1'
         run: |
           set -euo pipefail
           mkdir -p -m 700 "$HOME/.gnupg"
           printf '%s\n' "$APT_SIGNING_KEY" | gpg --batch --import
-          fingerprint="$(gpg --batch --with-colons --list-secret-keys | awk -F: '$1=="fpr" { print $10; exit }')"
+          fingerprint="$(gpg --batch --with-colons --list-secret-keys | awk -F: '$1=="fpr" {print $10; exit}')"
           test -n "$fingerprint"
           export SIGNING_FINGERPRINT="$fingerprint"
           python3 scripts/r2-publish publish
-      - name: Verify published APT repository through custom domain
+      - name: Verify public signed APT repository
+        if: env.HAS_DEBS == '1'
         run: |
           set -euo pipefail
           curl -fLsS --retry 3 https://apt.mbligh.org/dists/trixie/InRelease -o /tmp/r2-InRelease
@@ -210,5 +107,3 @@ jobs:
           sudo install -m 0644 /tmp/r2-keyring.gpg /usr/share/keyrings/mbligh-r2.gpg
           echo 'deb [signed-by=/usr/share/keyrings/mbligh-r2.gpg] https://apt.mbligh.org trixie main' | sudo tee /etc/apt/sources.list.d/mbligh-r2.list
           sudo apt-get update
-          apt-cache policy imapsync
-          apt-get download imapsync=2.314

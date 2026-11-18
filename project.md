@@ -1,5 +1,13 @@
 # mbligh apt repository — project outline
 
+## Active build/publishing architecture (November 2026)
+
+The repository is served from **Cloudflare R2** at `https://apt.mbligh.org` (Debian 13/trixie, amd64 and all). `package-<name>.yml` workflows build packages independently on relevant source changes, manual dispatch, or scheduled checks for moving upstream sources. A reusable `package-build.yml` runs package scripts, checks outputs and uploads `debian-packages` artifacts. The `mbligh-tools` workflow stages the private `tools/g` file from a read-only SSH deploy key only for that package.
+
+The R2 publisher listens to successful workflows, downloads one completed run's package artifact, and **does not compile or repackage anything**. It queues signed index updates (`queue: max`), retains previous entries and immutable package versions, and publishes by-hash Packages indexes followed by Release/InRelease. Identical versions are no-ops, while conflicting bytes at an existing version are rejected. Build fingerprints in the old R2 `publish-state.json` are historical and are not consulted or updated.
+
+Each current PyPI distribution gets a distinct trigger; `scripts/build-pypi-debs --package <normalized-name>` builds only that entry. The legacy Pages publisher is manual fallback. Previous project phases below contain historical Pages plans rather than the active architecture.
+
 ## Purpose and operating principles
 
 Host a small, signed Debian APT repository for software maintained or repackaged by mbligh. Keep the *runtime* operational interface conventional: dpkg/apt own installation and upgrades, systemd owns service lifecycle, journald handles logs, and normal host process/network tools remain useful. Avoid Docker, VMs and bespoke application updaters unless there is a concrete dependency or isolation reason.

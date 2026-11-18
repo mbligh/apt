@@ -70,70 +70,12 @@ def digest(path):
     return h.hexdigest()
 
 
-def source_hash(paths):
-    h = hashlib.sha256()
-    for path in sorted(set(paths)):
-        p = Path(path)
-        if not p.is_file():
-            continue
-        h.update(str(p).encode() + b"\0")
-        h.update(p.read_bytes())
-    return h.hexdigest()
-
-
-def packages():
-    return sorted(p.parent.name for p in Path("packages").glob("*/build.sh"))
-
-
-def fingerprints():
-    hashes = {}
-    for pkg in packages():
-        files = [str(p) for p in Path("packages", pkg).rglob("*") if p.is_file()]
-        hashes[pkg] = source_hash(files)
-    pypi_files = ["pypi-packages.txt", "scripts/build-pypi-debs"]
-    hashes["__pypi__"] = source_hash(pypi_files)
-    return hashes
-
-
 def read_state():
     with tempfile.TemporaryDirectory() as d:
         p = Path(d) / "state.json"
         if not get(STATE, p):
             return None
         return json.loads(p.read_text())
-
-
-def publication_fingerprints():
-    """Keep skipped optional packages pending for a future publication."""
-    current = fingerprints()
-    skipped_path = Path("/tmp/r2-skipped-packages")
-    if not skipped_path.is_file():
-        return current
-    previous = (read_state() or {}).get("fingerprints", {})
-    for name in sorted(set(skipped_path.read_text().splitlines())):
-        if name not in current:
-            raise RuntimeError("Unexpected skipped package: " + name)
-        if name in previous:
-            current[name] = previous[name]
-        else:
-            current.pop(name)
-        print("Deferred optional package until next run:", name)
-    return current
-
-
-def plan():
-    state = read_state()
-    current = fingerprints()
-    previous = (state or {}).get("fingerprints", {})
-    changed = [p for p in packages() if current[p] != previous.get(p)]
-    Path("/tmp/r2-build-packages").write_text("".join(p + "\n" for p in changed))
-    if current["__pypi__"] != previous.get("__pypi__"):
-        Path("/tmp/r2-build-pypi").touch()
-    print("Changed package builds:", changed)
-    print("PyPI rebuild:", Path("/tmp/r2-build-pypi").exists())
-    if state is None:
-        Path("/tmp/r2-initial").touch()
-    print("Initial R2 publication:", state is None)
 
 
 def stanzas(contents):
@@ -206,6 +148,7 @@ def publish():
             raise RuntimeError("R2 manifest exists but Packages index is absent")
 
         entries = dict(old)
+        new_count = 0
         DIST.mkdir(exist_ok=True)
         for deb in sorted(DIST.glob("*.deb")):
             fields, entry = deb_stanza(deb)
@@ -221,10 +164,14 @@ def publish():
                     if not get(key, existing) or digest(existing) != fields["SHA256"]:
                         raise RuntimeError("Conflicting unindexed package object: " + key)
                     print("Reusing matching previously uploaded package:", key)
+                new_count += 1
             entries[key] = fields, entry
 
         if not entries:
             raise RuntimeError("Refusing to publish empty APT repository")
+        if new_count == 0:
+            print("All supplied package versions are already published; nothing to change")
+            return
         site = temp / "site"
         binary = site / "dists/trixie/main/binary-amd64"
         binary.mkdir(parents=True)
@@ -275,12 +222,8 @@ def publish():
         for p in (index, gz, public, release, sig, inrelease):
             key = str(p.relative_to(site))
             put(p, key, cache="no-cache, must-revalidate")
-        # Store build fingerprints only *after* the published index is available.
-        state = temp / STATE
-        state.write_text(json.dumps({"fingerprints": publication_fingerprints()}, indent=2) + "\n")
-        put(state, STATE, cache="no-store")
         print("Published", len(entries), "package files to R2")
 
 
 if __name__ == "__main__":
-    {"plan": plan, "bootstrap": bootstrap, "publish": publish}[sys.argv[1]]()
+    {"bootstrap": bootstrap, "publish": publish}[sys.argv[1]]()
