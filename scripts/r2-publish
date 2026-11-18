@@ -153,8 +153,18 @@ def publish():
         for deb in sorted(DIST.glob("*.deb")):
             fields, entry = deb_stanza(deb)
             key = fields["Filename"]
-            if key in entries and entries[key][0]["SHA256"] != fields["SHA256"]:
-                raise RuntimeError("Refusing to overwrite published package: " + key)
+            if key in entries:
+                if entries[key][0]["SHA256"] != fields["SHA256"]:
+                    # Rebuilt .debs may differ byte-for-byte even if their
+                    # Debian version is unchanged (timestamps, build inputs).
+                    # Never overwrite published bytes or repoint that version.
+                    # Warn, retain the original, and let independent releases
+                    # continue. An intentional change must bump the version.
+                    print("WARNING: Different bytes for already published version;"
+                          " keeping existing package (bump revision to update):", key)
+                else:
+                    print("Already published:", key)
+                continue
             if key not in old:
                 # Put before making it visible in the signed index.
                 if not put(deb, key, immutable=True):
