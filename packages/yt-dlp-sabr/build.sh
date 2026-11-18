@@ -23,8 +23,16 @@ PY
 VERSION=$(sed -n '1p' "$tmp/release-info")
 ASSET_ID=$(sed -n '2p' "$tmp/release-info")
 SHA256=$(sed -n '3p' "$tmp/release-info")
-curl -fL --retry 3 -o "$tmp/yt-dlp" \
-  "https://github.com/bashonly/yt-dlp/releases/download/sabr/yt-dlp"
+echo "Downloading yt-dlp SABR release asset $ASSET_ID"
+if ! curl -fL --retry 3 -o "$tmp/yt-dlp" \
+  "https://github.com/bashonly/yt-dlp/releases/download/sabr/yt-dlp"; then
+  echo "Browser asset URL failed; trying GitHub release asset API" >&2
+  curl -fL --retry 3 \
+    -H 'Accept: application/octet-stream' \
+    -H 'X-GitHub-Api-Version: 2022-11-28' \
+    -o "$tmp/yt-dlp" \
+    "https://api.github.com/repos/bashonly/yt-dlp/releases/assets/$ASSET_ID"
+fi
 echo "$SHA256  $tmp/yt-dlp" | sha256sum -c -
 pkg="$tmp/pkg"
 mkdir -p "$pkg/DEBIAN" "$pkg/usr/bin" "$pkg/etc" "$pkg/usr/share/doc/yt-dlp-sabr"
