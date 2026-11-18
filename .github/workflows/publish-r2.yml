@@ -108,7 +108,17 @@ jobs:
           while read -r name; do
             test -n "$name" || continue
             echo "Building $name"
-            sh "packages/$name/build.sh"
+            if sh "packages/$name/build.sh"; then
+              :
+            else
+              rc=$?
+              if [ "$name" = yt-dlp-sabr ] && [ "$rc" -eq 75 ]; then
+                echo "::warning title=yt-dlp-sabr unavailable::Skipping upstream download; will retry on the next publication"
+                printf '%s\n' "$name" >> /tmp/r2-skipped-packages
+                continue
+              fi
+              exit "$rc"
+            fi
           done < /tmp/r2-build-packages
           if test -e /tmp/r2-build-pypi; then
             python -m venv /tmp/pypi-packager
