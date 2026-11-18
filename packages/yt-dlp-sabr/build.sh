@@ -6,7 +6,14 @@ tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 # Resolve the current moving release once, then download its immutable asset IDs.
 # The API supplies both the release timestamp and the asset SHA-256 digest.
-release=$(curl -fsSL --retry 3 https://api.github.com/repos/bashonly/yt-dlp/releases/tags/sabr)
+# GitHub Actions shared runners can hit unauthenticated API limits.
+# Use the workflow's read-only GitHub token when available.
+if [ -n "${GH_TOKEN:-}" ]; then
+  set -- -H "Authorization: Bearer $GH_TOKEN"
+else
+  set --
+fi
+release=$(curl -fsSL --retry 3 "$@" https://api.github.com/repos/bashonly/yt-dlp/releases/tags/sabr)
 printf '%s' "$release" > "$tmp/release.json"
 python3 - "$tmp/release.json" "$tmp/release-info" <<'PY'
 import json, re, sys
@@ -30,6 +37,7 @@ if ! curl -fL --retry 3 -o "$tmp/yt-dlp" \
   curl -fL --retry 3 \
     -H 'Accept: application/octet-stream' \
     -H 'X-GitHub-Api-Version: 2022-11-28' \
+    "$@" \
     -o "$tmp/yt-dlp" \
     "https://api.github.com/repos/bashonly/yt-dlp/releases/assets/$ASSET_ID"
 fi
