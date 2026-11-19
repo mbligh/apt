@@ -31,4 +31,14 @@ wait_for_file "$tmp/bash-result"
     echo "rtach failed to start bash as a login shell" >&2
     exit 1
 }
-echo "PASS: rtach forwards program arguments and bash login flag"
+# Exercise client attach too: -n alone tests master creation but misses a
+# SIGILL or other crash in the foreground interactive client path.
+timeout 10 script -q -e -c \
+    "$rtach -A $tmp/attach.sock /bin/bash -l -c 'shopt -q login_shell && printf attached > $tmp/attach-result'" \
+    /dev/null
+wait_for_file "$tmp/attach-result"
+[ "$(cat "$tmp/attach-result")" = "attached" ] || {
+    echo "rtach failed to forward args during interactive attach" >&2
+    exit 1
+}
+echo "PASS: rtach forwards program arguments, login flag and interactive attach"

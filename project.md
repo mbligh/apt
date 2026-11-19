@@ -14,7 +14,7 @@ A green package build means **built and uploaded to R2**, not necessarily indexe
 
 Each current PyPI distribution gets a distinct trigger; `scripts/build-pypi-debs --package <normalized-name>` builds only that entry. The legacy Pages publisher is manual fallback. Previous project phases below contain historical Pages plans rather than the active architecture.
 
-The rtach Debian package applies `packages/rtach/pass-command-arguments.patch` to upstream commit `372fefbaa051e240f3923bad480294a4f65718b7`. This propagates additional executable arguments through both the normal master and the macOS spawnd launch path. The package increments its Debian revision to `0.2.0-2` and tests `sh -c` and `bash -l -c` argument handling. Existing default shell integration remains enabled when no explicit arguments are supplied.
+The rtach Debian package applies `packages/rtach/pass-command-arguments.patch` to upstream commit `372fefbaa051e240f3923bad480294a4f65718b7`. This propagates additional executable arguments through both the normal master and the macOS spawnd launch path. The package increments its Debian revision to `0.2.0-3` and tests `sh -c`, `bash -l -c`, and interactive `-A` attachment. Builds explicitly set `-Dtarget=x86_64-linux-gnu -Dcpu=baseline` to prevent AVX-512 native-runner instructions from crashing older Xeon processors. Existing default shell integration remains enabled when no explicit arguments are supplied.
 
 ## Purpose and operating principles
 

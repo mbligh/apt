@@ -4,7 +4,7 @@ set -eu
 cd "$(dirname "$0")/../.."
 
 VERSION=0.2.0
-REVISION=2
+REVISION=3
 ARCH=amd64
 SOURCE_COMMIT=372fefbaa051e240f3923bad480294a4f65718b7
 ZIG_VERSION=0.16.0
@@ -28,10 +28,21 @@ patch -d "$tmp/src" -p1 --batch --forward < packages/rtach/pass-command-argument
 
 (
     cd "$tmp/src"
-    "$tmp/zig/zig" build -Doptimize=ReleaseFast --global-cache-dir "$tmp/zig-cache"
-    "$tmp/zig/zig" build test --global-cache-dir "$tmp/zig-cache"
+    # Zig defaults to the build runner's native CPU. The hosted runner may
+    # support AVX-512 while the target servers (e.g. Xeon E5 v4) do not.
+    # Build a portable x86-64 baseline binary, never a host-native one.
+    "$tmp/zig/zig" build -Dtarget=x86_64-linux-gnu -Dcpu=baseline \
+        -Doptimize=ReleaseFast --global-cache-dir "$tmp/zig-cache"
+    "$tmp/zig/zig" build test -Dtarget=x86_64-linux-gnu -Dcpu=baseline \
+        --global-cache-dir "$tmp/zig-cache"
     test -x zig-out/bin/rtach
     zig-out/bin/rtach --version
+    # Regression guard against accidentally reintroducing AVX-512 when changing
+    # the build configuration. EVEX often uses zmm or opmask k registers.
+    if objdump -d -M intel zig-out/bin/rtach | grep -Eq 'zmm[0-9]+| k[0-7],'; then
+        echo "rtach binary includes AVX-512 instructions; refusing to package" >&2
+        exit 1
+    fi
 )
 
 sh packages/rtach/test-command-arguments.sh "$tmp/src/zig-out/bin/rtach"

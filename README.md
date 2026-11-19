@@ -19,7 +19,7 @@ The legacy `publish-apt.yml` is a manual-only GitHub Pages fallback. The histori
 
 ## Packages
 
-- `rtach`: persistent terminal sessions with scrollback replay, packaged as `0.2.0-2` from pinned upstream source with a local patch for executable argument forwarding. `rtach -A /tmp/session bash -l` now starts a login shell. The patch preserves the existing shell-integration behavior when no arguments follow the executable.
+- `rtach`: persistent terminal sessions with scrollback replay, packaged as `0.2.0-3` from pinned upstream source with a local patch for executable argument forwarding. `rtach -A /tmp/session bash -l` now starts a login shell. Zig builds explicitly target generic x86-64 (not the native GitHub runner CPU) to avoid AVX-512 illegal instructions on Xeon E5 v4 hosts. The patch preserves the existing shell-integration behavior when no arguments follow the executable.
 
 - `mbligh-tools`: architecture-independent `/usr/bin/g` Git convenience command, built from the private `mbligh/tools` repository's `tools/g`. The APT publisher reads only that file using an SSH deploy key; version numbers follow the latest source commit affecting `tools/g`. Install with `sudo apt install mbligh-tools`.
 
