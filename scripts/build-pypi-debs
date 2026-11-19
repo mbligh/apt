@@ -58,6 +58,7 @@ def build(requirement, canonical, output, python, expose_imports=False):
         run(python, '-m', 'pip', 'download', '--disable-pip-version-check',
             '--only-binary=:all:', '--dest', str(wheels), requirement)
         native = any(metadata(wheel) for wheel in wheels.glob('*.whl'))
+        architecture = 'amd64' if native else 'all'
         payload = root / 'payload'
         lib = payload / 'usr' / 'lib' / ('pypi-' + canonical)
         lib.mkdir(parents=True)
@@ -105,7 +106,7 @@ def build(requirement, canonical, output, python, expose_imports=False):
         # is intentionally forbidden by the archive publisher.
         (control / 'control').write_text(
             f'Package: pypi-{canonical}\nVersion: {version}-2\nSection: python\n'
-            'Priority: optional\nArchitecture: all\nMaintainer: mbligh APT <apt@mbligh.org>\n'
+            f'Priority: optional\nArchitecture: {architecture}\nMaintainer: mbligh APT <apt@mbligh.org>\n'
             'Depends: python3 (>= 3.11), python3 (<< 3.14)\n'
             f'Description: Isolated PyPI distribution {canonical}\n'
             ' Automatically repackaged from platform-independent PyPI wheels.\n')
@@ -114,7 +115,7 @@ def build(requirement, canonical, output, python, expose_imports=False):
             os.utime(entry, (946684800, 946684800), follow_symlinks=False)
         os.utime(payload, (946684800, 946684800))
         output.mkdir(parents=True, exist_ok=True)
-        deb = output / f'pypi-{canonical}_{version}-2_{"amd64" if native else "all"}.deb'
+        deb = output / f'pypi-{canonical}_{version}-2_{architecture}.deb'
         run('dpkg-deb', '--build', '--root-owner-group', str(payload), str(deb))
         run('dpkg-deb', '--info', str(deb))
         print(f'BUILT {deb}')
