@@ -11,6 +11,8 @@ on:
       - 'pypi-packages.txt'
       - 'pypi-exposed.txt'
       - 'scripts/build-pypi-debs'
+      - 'pypi-locks/plexapi.txt'
+      - 'pypi-revisions.txt'
       - '.github/workflows/package-pypi-plexapi.yml'
   workflow_dispatch:
 

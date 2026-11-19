@@ -19,7 +19,7 @@ The legacy `publish-apt.yml` is a manual-only GitHub Pages fallback. The histori
 
 ## Packages
 
-- `pypi-plexapi`: PlexAPI 4.18.3, repackaged from PyPI as a Debian package using the per-package GitHub Actions workflow. Includes its pip-resolved dependencies and exposes `plexapi` to Debian's system Python via an opt-in `.pth` file. Install with `sudo apt install pypi-plexapi`, then `python3 -c 'from plexapi.server import PlexServer'`.
+- `pypi-plexapi`: PlexAPI 4.18.3 (Debian revision `-3`), repackaged from PyPI as a Debian package using the per-package GitHub Actions workflow. Includes its pip-resolved dependencies and exposes `plexapi` to Debian's system Python via an opt-in `.pth` file. Install with `sudo apt install pypi-plexapi`, then `python3 -c 'from plexapi.server import PlexServer'`.
 
 - `rtach`: persistent terminal sessions with scrollback replay, packaged as `0.2.0-3` from pinned upstream source with a local patch for executable argument forwarding. `rtach -A /tmp/session bash -l` now starts a login shell. Zig builds explicitly target generic x86-64 (not the native GitHub runner CPU) to avoid AVX-512 illegal instructions on Xeon E5 v4 hosts. The patch preserves the existing shell-integration behavior when no arguments follow the executable.
 
@@ -110,6 +110,26 @@ Both packages create dedicated system users, share a `media` group, keep applica
 
 ## Automatically repackaging PyPI packages
 
+Each PyPI package uses a committed `pypi-locks/<name>.txt` with the complete
+wheel dependency closure, exact filenames and SHA-256 hashes. CI rejects
+changed wheels instead of silently resolving different dependencies. The
+builder runs Python 3.13 and pip 26.2.2, and verifies hashes during both
+download and installation.
+
+To refresh locks, pin the distribution version in `pypi-packages.txt` and
+run **Generate PyPI wheel locks** (download its artifact), or locally:
+
+```sh
+python3.13 -m venv /tmp/pypi-packager
+/tmp/pypi-packager/bin/pip install 'pip==26.2.2'
+/tmp/pypi-packager/bin/python scripts/lock-pypi-wheels
+```
+
+Commit the resulting `pypi-locks/*.txt` and bump that package's Debian revision
+in `pypi-revisions.txt` whenever its wheel lock or packaging changes. Existing
+published Debian versions cannot be replaced with different bytes.
+
+
 Edit [pypi-packages.txt](pypi-packages.txt) on `main` and add one PyPI distribution name per line, optionally pinned with `==`:
 
 ```text
@@ -130,7 +150,7 @@ Names in `pypi-exposed.txt` opt in to system-Python imports via `/usr/lib/python
 
 The packager accepts **only binary wheels** (pure Python or compatible Linux x86-64 wheels) throughout the dependency tree, producing `Architecture: all` or `amd64` packages as appropriate. It does not execute upstream installation hooks at package installation time, and installs private libraries in `/usr/lib/pypi-<name>`. It does not automatically create services, package native extensions, install `data_files` outside its private directory, or handle applications that require extra operating-system libraries. Command-name conflicts with other packages are not resolved automatically. Only install packages from publishers you trust: upstream code still executes when launched. Build isolation is not a security sandbox.
 
-**Versioning:** The archive refuses to overwrite an existing Debian version with different bytes. A changed transitive dependency without a changed root package version will cause a publish failure; pinning root versions alone does not lock the dependency tree. A lockfile and automatic Debian revision management are future improvements. The workflow currently rebuilds every listed package on publication rather than only the changed entry.
+**Versioning:** The archive refuses to overwrite an existing Debian version with different bytes. Dependency versions and wheel SHA-256 hashes are locked; revisions are tracked in `pypi-revisions.txt` and must be bumped when the lock or packaging changes. The first locked revisions are `duckdb 2.0.0-3`, `roombapy-prime 0.7.1-3`, and `plexapi 4.18.3-3`. Automatic revision management is future work.
 
 ## Dell PERCCLI
 

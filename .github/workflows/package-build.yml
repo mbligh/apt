@@ -81,7 +81,7 @@ jobs:
           if [[ "$PACKAGE" == pypi-* ]]; then
             curl -fLsS --retry 3 https://deb.debian.org/debian/dists/trixie/main/binary-amd64/Packages.xz -o /tmp/debian-trixie-Packages.xz
             python -m venv /tmp/pypi-packager
-            /tmp/pypi-packager/bin/pip install 'pip>=24,<27'
+            /tmp/pypi-packager/bin/pip install 'pip==26.2.2'
             /tmp/pypi-packager/bin/python scripts/build-pypi-debs --package "${PACKAGE#pypi-}" --debian-packages /tmp/debian-trixie-Packages.xz || rc=$?
           else
             test -f "packages/$PACKAGE/build.sh"

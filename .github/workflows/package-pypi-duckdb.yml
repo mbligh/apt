@@ -10,6 +10,8 @@ on:
     paths:
       - 'pypi-packages.txt'
       - 'scripts/build-pypi-debs'
+      - 'pypi-locks/duckdb.txt'
+      - 'pypi-revisions.txt'
       - 'pypi-exposed.txt'
   workflow_dispatch:
   schedule:

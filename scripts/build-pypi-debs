@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-"""Build self-contained Debian packages from pure-Python PyPI wheels."""
+"""Build reproducible Debian packages from pinned PyPI wheels."""
 import argparse
 import email
+import hashlib
 import importlib.metadata
 import lzma
 import os
@@ -49,22 +50,71 @@ def metadata(wheel):
         return any(not tag.endswith('-none-any') for tag in tags)
 
 
-def build(requirement, canonical, output, python, expose_imports=False):
+def load_revisions(path):
+    result = {}
+    for number, line in enumerate(Path(path).read_text().splitlines(), 1):
+        value = line.split('#', 1)[0].split()
+        if not value:
+            continue
+        if len(value) != 2 or not value[1].isdigit() or int(value[1]) < 1:
+            raise ValueError(f'{path}:{number}: expected "name revision"')
+        name = re.sub(r'[-_.]+', '-', value[0]).lower()
+        if name in result:
+            raise ValueError(f'{path}:{number}: duplicate revision for {name}')
+        result[name] = int(value[1])
+    return result
+
+
+def locked_wheels(lock):
+    if not lock.is_file():
+        raise FileNotFoundError(f'Missing hash lock: {lock}')
+    expected = {}
+    pending = None
+    for line in lock.read_text().splitlines():
+        line = line.strip()
+        if line.startswith('# wheel: '):
+            if pending:
+                raise ValueError(f'Unpaired wheel: {pending}')
+            pending = line.removeprefix('# wheel: ')
+            if Path(pending).name != pending or not pending.endswith('.whl'):
+                raise ValueError(f'Invalid wheel name: {pending}')
+        elif line and not line.startswith('#'):
+            match = re.fullmatch(
+                r'[A-Za-z0-9][A-Za-z0-9_.-]*==[A-Za-z0-9][A-Za-z0-9_.+!-]* --hash=sha256:([0-9a-f]{64})',
+                line)
+            if not match or not pending or pending in expected:
+                raise ValueError(f'Invalid locked wheel: {line}')
+            expected[pending] = match.group(1)
+            pending = None
+    if pending or not expected:
+        raise ValueError(f'Incomplete lock: {lock}')
+    return expected
+
+
+def build(requirement, canonical, output, python, revision, lock, expose_imports=False):
     with tempfile.TemporaryDirectory(prefix='pypi-deb-') as temp:
         root = Path(temp)
         wheels = root / 'wheels'
         wheels.mkdir()
-        # Resolve the full tree as platform-independent wheels, never sdists.
+        # Require the exact locked wheel closure and hashes.
+        expected = locked_wheels(lock)
         run(python, '-m', 'pip', 'download', '--disable-pip-version-check',
-            '--only-binary=:all:', '--dest', str(wheels), requirement)
+            '--require-hashes', '--only-binary=:all:',
+            '--dest', str(wheels), '-r', str(lock))
+        actual = {wheel.name for wheel in wheels.glob('*.whl')}
+        if actual != set(expected):
+            raise ValueError(f'Wheel closure differs from {lock}: {sorted(actual)}')
+        for wheel in wheels.glob('*.whl'):
+            if hashlib.sha256(wheel.read_bytes()).hexdigest() != expected[wheel.name]:
+                raise ValueError(f'Unexpected wheel contents: {wheel.name}')
         native = any(metadata(wheel) for wheel in wheels.glob('*.whl'))
         architecture = 'amd64' if native else 'all'
         payload = root / 'payload'
         lib = payload / 'usr' / 'lib' / ('pypi-' + canonical)
         lib.mkdir(parents=True)
         run(python, '-m', 'pip', 'install', '--disable-pip-version-check',
-            '--no-index', '--find-links', str(wheels), '--no-compile',
-            '--target', str(lib), requirement)
+            '--require-hashes', '--no-index', '--find-links', str(wheels),
+            '--no-compile', '--target', str(lib), '-r', str(lock))
         # pip --target may leave build-machine shebangs in bin/; wrappers replace them.
         shutil.rmtree(lib / 'bin', ignore_errors=True)
         for cache in lib.rglob('__pycache__'):
@@ -74,6 +124,9 @@ def build(requirement, canonical, output, python, expose_imports=False):
         if len(match) != 1:
             raise ValueError(f'Cannot identify installed distribution {canonical}')
         version = match[0].version
+        if requirement.lower() not in (f'{canonical}=={version}'.lower(),
+                                       f'{match[0].metadata["Name"]}=={version}'.lower()):
+            raise ValueError(f'Root version disagrees with manifest: {requirement}')
         if not re.fullmatch(r'[0-9A-Za-z.+:~\-]+', version):
             raise ValueError(f'Unsupported Debian version: {version}')
         # The private import path is injected by wrappers; no runtime pip calls.
@@ -102,20 +155,19 @@ def build(requirement, canonical, output, python, expose_imports=False):
             pth.write_text(f'/usr/lib/pypi-{canonical}\n')
         control = payload / 'DEBIAN'
         control.mkdir()
-        # Version is tied to upstream; rebuilding same version with different deps
-        # is intentionally forbidden by the archive publisher.
+        # Changing this packaging or its lock requires a Debian revision bump.
         (control / 'control').write_text(
-            f'Package: pypi-{canonical}\nVersion: {version}-2\nSection: python\n'
+            f'Package: pypi-{canonical}\nVersion: {version}-{revision}\nSection: python\n'
             f'Priority: optional\nArchitecture: {architecture}\nMaintainer: mbligh APT <apt@mbligh.org>\n'
             'Depends: python3 (>= 3.11), python3 (<< 3.14)\n'
             f'Description: Isolated PyPI distribution {canonical}\n'
-            ' Automatically repackaged from platform-independent PyPI wheels.\n')
+            ' Automatically repackaged from hash-pinned PyPI wheels.\n')
         # Stable mtimes and sorted archive entries make repeat builds byte-identical.
         for entry in sorted(payload.rglob('*'), reverse=True):
             os.utime(entry, (946684800, 946684800), follow_symlinks=False)
         os.utime(payload, (946684800, 946684800))
         output.mkdir(parents=True, exist_ok=True)
-        deb = output / f'pypi-{canonical}_{version}-2_{architecture}.deb'
+        deb = output / f'pypi-{canonical}_{version}-{revision}_{architecture}.deb'
         run('dpkg-deb', '--build', '--root-owner-group', str(payload), str(deb))
         run('dpkg-deb', '--info', str(deb))
         print(f'BUILT {deb}')
@@ -132,12 +184,15 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--manifest', default='pypi-packages.txt')
     parser.add_argument('--output', default='dist')
+    parser.add_argument('--locks', default='pypi-locks')
+    parser.add_argument('--revisions', default='pypi-revisions.txt')
     parser.add_argument('--package', help='Build just this normalized PyPI distribution')
     parser.add_argument('--exposed', default='pypi-exposed.txt',
                         help='Manifest of packages exposed to system Python imports')
     parser.add_argument('--debian-packages', help='Debian trixie Packages.xz index for duplicate detection')
     args = parser.parse_args()
     existing = debian_names(args.debian_packages)
+    revision_map = load_revisions(args.revisions)
     exposed = {canonical for _, canonical in manifest(args.exposed)} if Path(args.exposed).exists() else set()
     found = False
     for requirement, canonical in manifest(args.manifest):
@@ -148,7 +203,11 @@ def main():
         if debian_package in existing:
             print(f'SKIP {requirement}: Debian already provides {debian_package}')
             continue
+        if canonical not in revision_map:
+            raise ValueError(f'Missing Debian revision for {canonical}')
         build(requirement, canonical, Path(args.output), sys.executable,
+              revision=revision_map[canonical],
+              lock=Path(args.locks) / f'{canonical}.txt',
               expose_imports=canonical in exposed)
     if args.package is not None and not found:
         raise SystemExit(f'No matching distribution in manifest: {args.package}')
