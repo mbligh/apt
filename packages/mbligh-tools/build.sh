@@ -10,16 +10,23 @@ if [ ! -f "$source" ] || [ ! -f "$version_file" ]; then
     exit 1
 fi
 version=$(cat "$version_file")
-if ! printf '%s\n' "$version" | grep -Eq '^0\.[0-9]{14}\+git[0-9a-f]{12}-1$'; then
+if ! printf '%s\n' "$version" | grep -Eq '^0\.[0-9]{14}\+git[0-9a-f]{12}-2$'; then
     echo "mbligh-tools: invalid version: $version" >&2
     exit 1
 fi
-python3 - "$source" <<'PY'
+# dpkg-deb uses SOURCE_DATE_EPOCH to stabilize archive timestamps across CI runs.
+# Derive it from the upstream source commit, which also determines the version.
+SOURCE_DATE_EPOCH=$(python3 - "$source" "$version" <<'PY'
 import ast
+from datetime import datetime, timezone
 from pathlib import Path
 import sys
 ast.parse(Path(sys.argv[1]).read_text())
+stamp = sys.argv[2][2:16]
+print(int(datetime.strptime(stamp, "%Y%m%d%H%M%S").replace(tzinfo=timezone.utc).timestamp()))
 PY
+)
+export SOURCE_DATE_EPOCH
 
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT HUP INT TERM

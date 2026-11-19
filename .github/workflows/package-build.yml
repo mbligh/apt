@@ -63,7 +63,7 @@ jobs:
           test -f private-tools/tools/g
           commit="$(git -C private-tools log -1 --format=%H -- tools/g)"
           timestamp="$(git -C private-tools log -1 --format=%ct -- tools/g)"
-          version="0.$(date -u -d "@$timestamp" +%Y%m%d%H%M%S)+git${commit:0:12}-1"
+          version="0.$(date -u -d "@$timestamp" +%Y%m%d%H%M%S)+git${commit:0:12}-2"
           install -m 644 private-tools/tools/g packages/mbligh-tools/upstream-g
           printf '%s\n' "$version" > packages/mbligh-tools/upstream-version
           echo "Packaging tools/g at $commit as $version"

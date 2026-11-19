@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 cd "$(dirname "$0")/../.."
-REVISION=1
+REVISION=2
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 # Resolve the current moving release once, then download its immutable asset IDs.
@@ -28,13 +28,18 @@ a = next(a for a in r['assets'] if a['name'] == 'yt-dlp')
 digest = a.get('digest', '')
 if not re.fullmatch(r'sha256:[0-9a-f]{64}', digest):
     raise SystemExit('Release asset lacks a valid SHA-256 digest')
-version = datetime.fromisoformat(r['published_at'].replace('Z', '+00:00')).astimezone(timezone.utc).strftime('%Y.%m.%d.%H%M%S')
+when = datetime.fromisoformat(r['published_at'].replace('Z', '+00:00')).astimezone(timezone.utc)
+# Moving release tags can replace an asset without changing published_at.
+# Asset IDs increase on replacement; zero-padding preserves Debian version order.
+version = when.strftime('%Y.%m.%d.%H%M%S') + f"+asset{a['id']:012d}"
 with open(sys.argv[2], 'w') as out:
-    out.write(f"{version}\n{a['id']}\n{digest[7:]}\n")
+    out.write(f"{version}\n{a['id']}\n{digest[7:]}\n{int(when.timestamp())}\n")
 PY
 VERSION=$(sed -n '1p' "$tmp/release-info")
 ASSET_ID=$(sed -n '2p' "$tmp/release-info")
 SHA256=$(sed -n '3p' "$tmp/release-info")
+SOURCE_DATE_EPOCH=$(sed -n '4p' "$tmp/release-info")
+export SOURCE_DATE_EPOCH
 echo "Downloading yt-dlp SABR release asset $ASSET_ID"
 if ! curl -fL --retry 3 -o "$tmp/yt-dlp" \
   "https://github.com/bashonly/yt-dlp/releases/download/sabr/yt-dlp"; then
