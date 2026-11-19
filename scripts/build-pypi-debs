@@ -49,7 +49,7 @@ def metadata(wheel):
         return any(not tag.endswith('-none-any') for tag in tags)
 
 
-def build(requirement, canonical, output, python):
+def build(requirement, canonical, output, python, expose_imports=False):
     with tempfile.TemporaryDirectory(prefix='pypi-deb-') as temp:
         root = Path(temp)
         wheels = root / 'wheels'
@@ -93,6 +93,12 @@ def build(requirement, canonical, output, python):
                 f'eps = (e for d in dists if d.metadata["Name"].lower().replace("_", "-").replace(".", "-") == {canonical!r} for e in d.entry_points)\n'
                 f'sys.exit(next(e for e in eps if e.group == "console_scripts" and e.name == {ep.name!r}).load()())\n')
             dest.chmod(0o755)
+        # Library-only packages can opt in to normal system Python imports.
+        # Keep this explicit: a .pth also exposes bundled dependencies globally.
+        if expose_imports:
+            pth = payload / 'usr' / 'lib' / 'python3' / 'dist-packages' / f'pypi-{canonical}.pth'
+            pth.parent.mkdir(parents=True, exist_ok=True)
+            pth.write_text(f'/usr/lib/pypi-{canonical}\n')
         control = payload / 'DEBIAN'
         control.mkdir()
         # Version is tied to upstream; rebuilding same version with different deps
@@ -126,9 +132,12 @@ def main():
     parser.add_argument('--manifest', default='pypi-packages.txt')
     parser.add_argument('--output', default='dist')
     parser.add_argument('--package', help='Build just this normalized PyPI distribution')
+    parser.add_argument('--exposed', default='pypi-exposed.txt',
+                        help='Manifest of packages exposed to system Python imports')
     parser.add_argument('--debian-packages', help='Debian trixie Packages.xz index for duplicate detection')
     args = parser.parse_args()
     existing = debian_names(args.debian_packages)
+    exposed = {canonical for _, canonical in manifest(args.exposed)} if Path(args.exposed).exists() else set()
     found = False
     for requirement, canonical in manifest(args.manifest):
         if args.package is not None and canonical != args.package:
@@ -138,7 +147,8 @@ def main():
         if debian_package in existing:
             print(f'SKIP {requirement}: Debian already provides {debian_package}')
             continue
-        build(requirement, canonical, Path(args.output), sys.executable)
+        build(requirement, canonical, Path(args.output), sys.executable,
+              expose_imports=canonical in exposed)
     if args.package is not None and not found:
         raise SystemExit(f'No matching distribution in manifest: {args.package}')
 

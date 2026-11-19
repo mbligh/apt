@@ -10,6 +10,7 @@ on:
     paths:
       - 'pypi-packages.txt'
       - 'scripts/build-pypi-debs'
+      - 'pypi-exposed.txt'
   workflow_dispatch:
 
 jobs:

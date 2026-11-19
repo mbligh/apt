@@ -1,0 +1,3 @@
+# Canonical PyPI names whose bundled libraries should be importable by system Python.
+# Opt-in only: adding a .pth file exposes bundled dependencies on sys.path.
+plexapi

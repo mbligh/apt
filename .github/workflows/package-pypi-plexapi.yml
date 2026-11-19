@@ -1,0 +1,22 @@
+name: Build pypi-plexapi
+
+permissions:
+  contents: read
+  actions: write  # Allow the reusable build to dispatch index publication
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'pypi-packages.txt'
+      - 'pypi-exposed.txt'
+      - 'scripts/build-pypi-debs'
+      - '.github/workflows/package-pypi-plexapi.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    uses: ./.github/workflows/package-build.yml
+    with:
+      package: pypi-plexapi
+    secrets: inherit

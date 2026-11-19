@@ -152,6 +152,14 @@ jobs:
               dpkg-deb -x dist/desktop-commander_*.deb /tmp/desktop-commander-extracted
               node --check /tmp/desktop-commander-extracted/usr/lib/desktop-commander/node_modules/@wonderwhy-er/desktop-commander/dist/index.js
               ;;
+            pypi-plexapi)
+              # Install on the target distro and verify an ordinary Python import.
+              docker run --rm -v "$PWD/dist:/pkgs:ro" debian:trixie sh -ec '
+                apt-get update -qq
+                apt-get install -y --no-install-recommends /pkgs/pypi-plexapi_*.deb
+                python3 -c "from plexapi.server import PlexServer; import plexapi; assert plexapi.__file__.startswith(\"/usr/lib/pypi-plexapi/\")"
+              '
+              ;;
             mbligh-tools)
               mkdir -p /tmp/mbligh-tools-extracted
               dpkg-deb -x dist/mbligh-tools_*.deb /tmp/mbligh-tools-extracted

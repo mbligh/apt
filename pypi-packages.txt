@@ -2,3 +2,4 @@
 # Debian trixie python3-* packages are skipped automatically.
 roombapy-prime==0.7.1
 duckdb
+plexapi==4.18.3

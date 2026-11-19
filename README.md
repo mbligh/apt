@@ -19,6 +19,8 @@ The legacy `publish-apt.yml` is a manual-only GitHub Pages fallback. The histori
 
 ## Packages
 
+- `pypi-plexapi`: PlexAPI 4.18.3, repackaged from PyPI as a Debian package using the per-package GitHub Actions workflow. Includes its pip-resolved dependencies and exposes `plexapi` to Debian's system Python via an opt-in `.pth` file. Install with `sudo apt install pypi-plexapi`, then `python3 -c 'from plexapi.server import PlexServer'`.
+
 - `rtach`: persistent terminal sessions with scrollback replay, packaged as `0.2.0-3` from pinned upstream source with a local patch for executable argument forwarding. `rtach -A /tmp/session bash -l` now starts a login shell. Zig builds explicitly target generic x86-64 (not the native GitHub runner CPU) to avoid AVX-512 illegal instructions on Xeon E5 v4 hosts. The patch preserves the existing shell-integration behavior when no arguments follow the executable.
 
 - `mbligh-tools`: architecture-independent `/usr/bin/g` Git convenience command, built from the private `mbligh/tools` repository's `tools/g`. The APT publisher reads only that file using an SSH deploy key; version numbers follow the latest source commit affecting `tools/g`. Install with `sudo apt install mbligh-tools`.
@@ -123,6 +125,8 @@ python3.13 -m venv /tmp/pypi-packager
 /tmp/pypi-packager/bin/python -m pip install -U pip
 /tmp/pypi-packager/bin/python scripts/build-pypi-debs
 ```
+
+Names in `pypi-exposed.txt` opt in to system-Python imports via `/usr/lib/python3/dist-packages/pypi-<name>.pth`. This is necessary for libraries without command-line entrypoints, such as `plexapi`; it also makes the package's bundled dependencies importable by other Python programs, so use this opt-in deliberately. All other PyPI packages retain their isolated import paths.
 
 The packager accepts **only pure-Python wheels throughout the dependency tree**, does not execute upstream installation hooks at package installation time, and installs private libraries in `/usr/lib/pypi-<name>`. It does not automatically create services, package native extensions, install `data_files` outside its private directory, or handle applications that require extra operating-system libraries. Command-name conflicts with other packages are not resolved automatically. Only install packages from publishers you trust: upstream code still executes when launched. Build isolation is not a security sandbox.
 
