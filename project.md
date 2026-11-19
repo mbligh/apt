@@ -14,6 +14,8 @@ A green package build means **built and uploaded to R2**, not necessarily indexe
 
 Each current PyPI distribution gets a distinct trigger; `scripts/build-pypi-debs --package <normalized-name>` builds only that entry. The legacy Pages publisher is manual fallback. Previous project phases below contain historical Pages plans rather than the active architecture.
 
+The rtach Debian package applies `packages/rtach/pass-command-arguments.patch` to upstream commit `372fefbaa051e240f3923bad480294a4f65718b7`. This propagates additional executable arguments through both the normal master and the macOS spawnd launch path. The package increments its Debian revision to `0.2.0-2` and tests `sh -c` and `bash -l -c` argument handling. Existing default shell integration remains enabled when no explicit arguments are supplied.
+
 ## Purpose and operating principles
 
 Host a small, signed Debian APT repository for software maintained or repackaged by mbligh. Keep the *runtime* operational interface conventional: dpkg/apt own installation and upgrades, systemd owns service lifecycle, journald handles logs, and normal host process/network tools remain useful. Avoid Docker, VMs and bespoke application updaters unless there is a concrete dependency or isolation reason.

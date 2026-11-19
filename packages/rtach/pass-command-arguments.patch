@@ -1,0 +1,146 @@
+diff --git a/src/main.zig b/src/main.zig
+--- a/src/main.zig
++++ b/src/main.zig
+@@ -279,7 +279,10 @@
+ const Args = struct {
+     mode: Mode,
+     socket_path: []const u8,
+-    command: ?[]const u8 = null,
++    command: ?[]const u8 = null,
++    // Arguments after the executable belong to the executable, not rtach.
++    command_args: [32]?[]const u8 = .{null} ** 32,
++    command_argc: usize = 0,
+     redraw_method: ClientOptions.RedrawMethod = .none,
+     no_detach_char: bool = false,
+     detach_char: u8 = 0x1c, // Ctrl+\ by default
+@@ -387,8 +390,10 @@
+     if (!args.no_spawnd) {
+         const result = spawnd.startMaster(allocator, io, .{
+             .socket_path = args.socket_path,
+-            .command = args.command,
+-            .scrollback_size = args.scrollback_size,
++            .command = args.command,
++            .command_args = args.command_args,
++            .command_argc = args.command_argc,
++            .scrollback_size = args.scrollback_size,
+         });
+         // spawnd may have started it after all, and a second one would replace it
+         if (result == .started or (result == .failed and socketLive(args.socket_path))) {
+@@ -445,8 +450,10 @@
+ 
+         var master = Master.init(allocator, io, .{
+             .socket_path = args.socket_path,
+-            .command = command,
+-            .scrollback_size = args.scrollback_size,
++            .command = command,
++            .command_args = args.command_args,
++            .command_argc = args.command_argc,
++            .scrollback_size = args.scrollback_size,
+             .notice = notice,
+         }) catch std.process.exit(1);
+         _ = sys.write(ready[1], "1") catch {};
+@@ -569,8 +576,16 @@
+ 
+     var found_socket = false;
+ 
+-    while (args_iter.next()) |arg| {
+-        if (std.mem.eql(u8, arg, "--version") or std.mem.eql(u8, arg, "-v")) {
++    while (args_iter.next()) |arg| {
++        // Once an executable is provided, all remaining tokens are its argv,
++        // even when they resemble rtach options (e.g. bash -l or sh -c).
++        if (result.command != null) {
++            if (result.command_argc == result.command_args.len) return error.TooManyCommandArguments;
++            result.command_args[result.command_argc] = arg;
++            result.command_argc += 1;
++            continue;
++        }
++        if (std.mem.eql(u8, arg, "--version") or std.mem.eql(u8, arg, "-v")) {
+             // Print version and exit
+             _ = sys.write(posix.STDOUT_FILENO, version ++ "\n") catch {};
+             std.process.exit(0);
+diff --git a/src/master.zig b/src/master.zig
+--- a/src/master.zig
++++ b/src/master.zig
+@@ -315,8 +315,10 @@
+ 
+ pub const MasterOptions = struct {
+     socket_path: []const u8,
+-    command: []const u8,
+-    scrollback_size: usize = 1024 * 1024,
++    command: []const u8,
++    command_args: [32]?[]const u8 = .{null} ** 32,
++    command_argc: usize = 0,
++    scrollback_size: usize = 1024 * 1024,
+     /// Written to the terminal before the program starts
+     notice: ?[]const u8 = null,
+ };
+@@ -882,8 +884,22 @@
+                 log.warn("failed to deploy shell integration: {}", .{err});
+             };
+ 
+-            // Detect shell type and prepare args with integration
+-            const shell_type = ShellIntegration.detectShellType(self.options.command);
++            // Explicit command arguments must reach execvp verbatim. In particular,
++            // "bash -l" must start a login shell rather than being rewritten to
++            // "bash --rcfile ..." by the default interactive shell integration.
++            if (self.options.command_argc > 0) {
++                var argv: [33:null]?[*:0]const u8 = .{null} ** 33;
++                argv[0] = @ptrCast(self.options.command.ptr);
++                for (self.options.command_args[0..self.options.command_argc], 0..) |arg, i| {
++                    argv[i + 1] = @ptrCast(arg.?.ptr);
++                }
++                stderrToPty(slave_fd);
++                sys.execvpZ(@ptrCast(self.options.command.ptr), &argv);
++                std.process.exit(127);
++            }
++
++            // Detect shell type and prepare args with integration
++            const shell_type = ShellIntegration.detectShellType(self.options.command);
+ 
+             const shell_setup = ShellIntegration.prepareShellArgs(
+                 self.allocator,
+diff --git a/src/spawnd.zig b/src/spawnd.zig
+--- a/src/spawnd.zig
++++ b/src/spawnd.zig
+@@ -41,8 +41,10 @@
+ 
+ pub const MasterOptions = struct {
+     socket_path: []const u8,
+-    command: ?[]const u8,
+-    scrollback_size: usize,
++    command: ?[]const u8,
++    command_args: [32]?[]const u8 = .{null} ** 32,
++    command_argc: usize = 0,
++    scrollback_size: usize,
+ };
+ 
+ pub const Result = enum {
+@@ -87,12 +89,22 @@
+     var size_buf: [24]u8 = undefined;
+     const size = try std.fmt.bufPrint(&size_buf, "{d}", .{options.scrollback_size});
+ 
+-    var argv: [7][]const u8 = .{ exe, "--no-spawnd", "-n", "-s", size, options.socket_path, "" };
+-    var argc: usize = 6;
+-    if (options.command) |command| {
+-        argv[argc] = command;
+-        argc += 1;
+-    }
++    var argv: [39][]const u8 = undefined;
++    argv[0] = exe;
++    argv[1] = "--no-spawnd";
++    argv[2] = "-n";
++    argv[3] = "-s";
++    argv[4] = size;
++    argv[5] = options.socket_path;
++    var argc: usize = 6;
++    if (options.command) |command| {
++        argv[argc] = command;
++        argc += 1;
++    }
++    for (options.command_args[0..options.command_argc]) |argument| {
++        argv[argc] = argument orelse return error.InvalidCommandArgument;
++        argc += 1;
++    }
+ 
+     var out: std.ArrayList(u8) = .empty;
+     errdefer out.deinit(allocator);

@@ -19,6 +19,8 @@ The legacy `publish-apt.yml` is a manual-only GitHub Pages fallback. The histori
 
 ## Packages
 
+- `rtach`: persistent terminal sessions with scrollback replay, packaged as `0.2.0-2` from pinned upstream source with a local patch for executable argument forwarding. `rtach -A /tmp/session bash -l` now starts a login shell. The patch preserves the existing shell-integration behavior when no arguments follow the executable.
+
 - `mbligh-tools`: architecture-independent `/usr/bin/g` Git convenience command, built from the private `mbligh/tools` repository's `tools/g`. The APT publisher reads only that file using an SSH deploy key; version numbers follow the latest source commit affecting `tools/g`. Install with `sudo apt install mbligh-tools`.
 
 - `sfutils`: AMD Solarflare Linux Utilities 8.3.4.1000 (`SF-107601-LS`), converted from AMD's x86_64 RPM for Debian 13. Includes `sfupdate`, `sfboot`, `sfkey`, and `sfctool`. Firmware updates are **manual only**; installation does not flash the NIC. AMD upstream download is over HTTPS, with pinned SHA-256 `842bc13284a778c3be01af7e15cc106293d974b48ebcb4726120f9e8619c95c0`; public redistribution rights remain to be verified. See [AMD downloads](https://www.amd.com/en/support/downloads/solarflare-downloads.html/ethernet-adapters/solarflare/x2-series.html).

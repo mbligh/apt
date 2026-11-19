@@ -4,7 +4,7 @@ set -eu
 cd "$(dirname "$0")/../.."
 
 VERSION=0.2.0
-REVISION=1
+REVISION=2
 ARCH=amd64
 SOURCE_COMMIT=372fefbaa051e240f3923bad480294a4f65718b7
 ZIG_VERSION=0.16.0
@@ -24,6 +24,7 @@ curl -fLsS --retry 3 -o "$tmp/rtach.tar.gz" \
     "https://github.com/eriklangille/rtach/archive/$SOURCE_COMMIT.tar.gz"
 mkdir -p "$tmp/src"
 tar -xf "$tmp/rtach.tar.gz" -C "$tmp/src" --strip-components=1
+patch -d "$tmp/src" -p1 --batch --forward < packages/rtach/pass-command-arguments.patch
 
 (
     cd "$tmp/src"
@@ -32,6 +33,8 @@ tar -xf "$tmp/rtach.tar.gz" -C "$tmp/src" --strip-components=1
     test -x zig-out/bin/rtach
     zig-out/bin/rtach --version
 )
+
+sh packages/rtach/test-command-arguments.sh "$tmp/src/zig-out/bin/rtach"
 
 pkg="$tmp/pkg"
 mkdir -p "$pkg/DEBIAN" "$pkg/usr/bin" "$pkg/usr/share/doc/rtach"
