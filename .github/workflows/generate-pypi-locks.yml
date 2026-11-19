@@ -1,0 +1,36 @@
+name: Generate PyPI wheel locks
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/lock-pypi-wheels'
+      - '.github/workflows/generate-pypi-locks.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  lock:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - name: Prepare pinned pip
+        run: |
+          python -m venv /tmp/pypi-packager
+          /tmp/pypi-packager/bin/pip install 'pip==26.2.2'
+      - name: Resolve current PyPI wheel closures
+        run: |
+          /tmp/pypi-packager/bin/python scripts/lock-pypi-wheels \
+            --requirement 'duckdb==2.0.0' \
+            --requirement 'roombapy-prime==0.7.1' \
+            --requirement 'plexapi==4.18.3'
+      - uses: actions/upload-artifact@v6
+        with:
+          name: pypi-locks
+          path: pypi-locks/*.txt
+          if-no-files-found: error
