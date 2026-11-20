@@ -4,7 +4,7 @@ set -eu
 cd "$(dirname "$0")/../.."
 
 VERSION='3.36-1+deb13u3'
-LOCAL_VERSION="${VERSION}+mbligh1"
+LOCAL_VERSION="${VERSION}+mbligh2"
 ARCH=all
 FILENAME="get-iplayer_${VERSION}_${ARCH}.deb"
 URL="https://download.opensuse.org/repositories/home:/m-grant-prg/Debian_13/all/$FILENAME"
@@ -29,6 +29,31 @@ dpkg-deb --contents "$tmp/$FILENAME" >/dev/null
 # Our own signed APT repository needs no trust of that unrelated repository.
 repack="$tmp/repack"
 dpkg-deb --raw-extract "$tmp/$FILENAME" "$repack"
+# get_iplayer 3.36 cannot process DASH SegmentTimeline manifests without a
+# constant @duration, and divides by zero while collecting stream details.
+# Skip such manifests so another CDN or HLS variant can still be selected.
+# Upstream issue: https://github.com/get-iplayer/get_iplayer/issues/524
+python3 - "$repack/usr/bin/get_iplayer" <<'PY'
+from pathlib import Path
+import sys
+
+script = Path(sys.argv[1])
+source = script.read_text()
+old = "my $segment_duration = $template->findvalue('@duration') / $template->findvalue('@timescale');"
+indent = "\t" * 4
+new = ("\n" + indent).join([
+    "my $duration = $template->findvalue('@duration');",
+    "my $timescale = $template->findvalue('@timescale');",
+    "if ( ! $duration || ! $timescale ) {",
+    '\tmain::logger "WARNING: Skipping DASH manifest without constant segment duration ($conn->{href})\\n";',
+    "\treturn;",
+    "}",
+    "my $segment_duration = $duration / $timescale;",
+])
+if source.count(old) != 1:
+    raise SystemExit("Expected get_iplayer 3.36 segment-duration expression not found exactly once")
+script.write_text(source.replace(old, new))
+PY
 control="$repack/DEBIAN/control"
 grep -q '^Depends: .*mgrant-obs-deb-keyring' "$control" || {
   echo "Expected OBS keyring dependency is missing; review upstream metadata" >&2
