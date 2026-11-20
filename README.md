@@ -19,6 +19,8 @@ The legacy `publish-apt.yml` is a manual-only GitHub Pages fallback. The histori
 
 ## Packages
 
+- `get-iplayer`: openSUSE Build Service's Debian 13 `get-iplayer` 3.36-1+deb13u3, imported unchanged as an architecture-independent .deb. The upstream SHA-256 is pinned to its published openSUSE mirror metadata. The package workflow checks installation and `get_iplayer --version` inside Debian trixie before staging to R2. Install with `sudo apt install get-iplayer` after publication.
+
 - `jellyfin-web`: source-built Jellyfin Web 12.4 with portrait **series/movie** posters in Next Up and Continue Watching (the existing setting can switch to episode images), and **16:9** thumbnails for episodes listed within seasons. Built from pinned [mbligh/jellyfin-web](https://github.com/mbligh/jellyfin-web/tree/mbligh-v12.4) commit `a54e7faaa586` using Node 24 only in CI; installs static files under `/usr/share/jellyfin/web` and preserves the `config.json` conffile. The `jellyfin-server` package remains unchanged. Build with Actions `package-jellyfin-web.yml`; publication uses the same R2 staging and signed index pipeline as every other package.
 
 - `pypi-plexapi`: PlexAPI 4.18.3 (Debian revision `-3`), repackaged from PyPI as a Debian package using the per-package GitHub Actions workflow. Includes its pip-resolved dependencies and exposes `plexapi` to Debian's system Python via an opt-in `.pth` file. Install with `sudo apt install pypi-plexapi`, then `python3 -c 'from plexapi.server import PlexServer'`.
