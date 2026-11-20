@@ -1,5 +1,23 @@
 # mbligh apt repository — project outline
 
+## Patched jellyfin-web (12.4) packaging
+
+`packages/jellyfin-web/build.sh` fetches a pinned commit of the
+`mbligh-v12.4` branch in `mbligh/jellyfin-web`, verifies the checkout,
+builds with Node 24/npm and TypeScript checks in GitHub Actions, and packages
+only `dist/` as an `Architecture: all` replacement for Debian's
+`jellyfin-web`. Runtime has no Node/npm dependencies. The Debian version
+includes the patch commit timestamp and abbreviated SHA, sorts above
+`12.4+deb13` and below an upstream 12.5 release. The installed path and
+`config.json` conffile match the official Debian package.
+
+The per-package `package-jellyfin-web.yml` workflow invokes the common
+build/validation/stage job, uploads the immutable .deb directly to Cloudflare
+R2, and requests the existing signing/index workflow. Edit the pinned SHA to
+build a new fork revision. No fork-side secrets or cross-repository deployment
+tokens are needed. The APT workflow runs on recipe changes or manual dispatch;
+fork source commits alone do not trigger a new APT build.
+
 ## Active build/publishing architecture (November 2026)
 
 The repository is served from **Cloudflare R2** at `https://apt.mbligh.org` (Debian 13/trixie, amd64 and all).

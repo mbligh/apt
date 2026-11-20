@@ -23,7 +23,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends dpkg-dev curl unzip alien rpm fakeroot python3-venv python3-pip
       - name: Install Node 24 for JavaScript builds
-        if: inputs.package == 'desktop-commander' || inputs.package == 'metube'
+        if: inputs.package == 'desktop-commander' || inputs.package == 'metube' || inputs.package == 'jellyfin-web'
         uses: actions/setup-node@v4
         with:
           node-version: '24'
@@ -159,6 +159,18 @@ jobs:
                 apt-get install -y --no-install-recommends /pkgs/pypi-plexapi_*.deb
                 python3 -c "from plexapi.server import PlexServer; import plexapi; assert plexapi.__file__.startswith(\"/usr/lib/pypi-plexapi/\")"
               '
+              ;;
+            jellyfin-web)
+              mkdir -p /tmp/jellyfin-web-extracted
+              dpkg-deb -x dist/jellyfin-web_*.deb /tmp/jellyfin-web-extracted
+              test -s /tmp/jellyfin-web-extracted/usr/share/jellyfin/web/index.html
+              test -s /tmp/jellyfin-web-extracted/usr/share/jellyfin/web/config.json
+              test -s /tmp/jellyfin-web-extracted/usr/share/jellyfin/web/serviceworker.js
+              test ! -d /tmp/jellyfin-web-extracted/usr/share/jellyfin/web/node_modules
+              dpkg-deb -f dist/jellyfin-web_*.deb Package | grep -qx jellyfin-web
+              dpkg-deb -f dist/jellyfin-web_*.deb Architecture | grep -qx all
+              dpkg-deb -f dist/jellyfin-web_*.deb Depends | grep -qvE 'nodejs|npm' || test -z "$(dpkg-deb -f dist/jellyfin-web_*.deb Depends)"
+              dpkg-deb --ctrl-tarfile dist/jellyfin-web_*.deb | tar -xOf - ./conffiles | grep -qx /usr/share/jellyfin/web/config.json
               ;;
             mbligh-tools)
               mkdir -p /tmp/mbligh-tools-extracted

@@ -1,0 +1,20 @@
+name: Build patched jellyfin-web
+
+permissions:
+  contents: read
+  actions: write  # Allow the reusable build to dispatch index publication
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'packages/jellyfin-web/**'
+      - '.github/workflows/package-jellyfin-web.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    uses: ./.github/workflows/package-build.yml
+    with:
+      package: jellyfin-web
+    secrets: inherit
