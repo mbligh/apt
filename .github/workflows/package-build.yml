@@ -115,6 +115,14 @@ jobs:
             echo "Verified package: $deb"
           done
           case "$PACKAGE" in
+            get-iplayer)
+              docker run --rm -v "$PWD/dist:/pkgs:ro" debian:trixie sh -ec '
+                apt-get update -qq
+                apt-get install -y --no-install-recommends /pkgs/get-iplayer_*.deb
+                command -v get_iplayer
+                get_iplayer --version
+              '
+              ;;
             sfutils)
               docker run --rm -v "$PWD/dist:/pkgs:ro" debian:trixie sh -ec '
                 apt-get update -qq
