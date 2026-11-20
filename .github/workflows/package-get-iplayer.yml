@@ -1,0 +1,20 @@
+name: Build get-iplayer
+
+permissions:
+  contents: read
+  actions: write  # Allow the reusable build to dispatch index publication
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'packages/get-iplayer/**'
+      - '.github/workflows/package-get-iplayer.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    uses: ./.github/workflows/package-build.yml
+    with:
+      package: get-iplayer
+    secrets: inherit
