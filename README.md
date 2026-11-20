@@ -19,7 +19,7 @@ The legacy `publish-apt.yml` is a manual-only GitHub Pages fallback. The histori
 
 ## Packages
 
-- `jellyfin-web`: source-built Jellyfin Web 12.4 with portrait **series** posters in Next Up (optionally switch to episode artwork through the existing display preference). Built from pinned [mbligh/jellyfin-web](https://github.com/mbligh/jellyfin-web/tree/mbligh-v12.4) commit `cd6bb94c8ce7` using Node 24 only in CI; installs static files under `/usr/share/jellyfin/web` and preserves the `config.json` conffile. The `jellyfin-server` package remains unchanged. Build with Actions `package-jellyfin-web.yml`; publication uses the same R2 staging and signed index pipeline as every other package.
+- `jellyfin-web`: source-built Jellyfin Web 12.4 with portrait **series/movie** posters in Next Up and Continue Watching (the existing setting can switch to episode images), and **16:9** thumbnails for episodes listed within seasons. Built from pinned [mbligh/jellyfin-web](https://github.com/mbligh/jellyfin-web/tree/mbligh-v12.4) commit `a54e7faaa586` using Node 24 only in CI; installs static files under `/usr/share/jellyfin/web` and preserves the `config.json` conffile. The `jellyfin-server` package remains unchanged. Build with Actions `package-jellyfin-web.yml`; publication uses the same R2 staging and signed index pipeline as every other package.
 
 - `pypi-plexapi`: PlexAPI 4.18.3 (Debian revision `-3`), repackaged from PyPI as a Debian package using the per-package GitHub Actions workflow. Includes its pip-resolved dependencies and exposes `plexapi` to Debian's system Python via an opt-in `.pth` file. Install with `sudo apt install pypi-plexapi`, then `python3 -c 'from plexapi.server import PlexServer'`.
 

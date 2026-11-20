@@ -9,7 +9,10 @@ only `dist/` as an `Architecture: all` replacement for Debian's
 `jellyfin-web`. Runtime has no Node/npm dependencies. The Debian version
 includes the patch commit timestamp and abbreviated SHA, sorts above
 `12.4+deb13` and below an upstream 12.5 release. The installed path and
-`config.json` conffile match the official Debian package.
+`config.json` conffile match the official Debian package. The fork now
+uses portrait series/movie posters for Next Up and Continue Watching, and
+16:9 episode artwork in season lists. The episode-image preference
+still switches the home-page cards back to landscape thumbnails.
 
 The per-package `package-jellyfin-web.yml` workflow invokes the common
 build/validation/stage job, uploads the immutable .deb directly to Cloudflare

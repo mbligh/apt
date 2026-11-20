@@ -4,7 +4,7 @@ set -eu
 cd "$(dirname "$0")/../.."
 
 # Update this pin and commit a new recipe whenever the source patch changes.
-SOURCE_COMMIT=cd6bb94c8ce755557545d5f0335879f758b9e0dd
+SOURCE_COMMIT=a54e7faaa586ef2d709ee4a170e7e38f6bb87e97
 SOURCE_REPO=https://github.com/mbligh/jellyfin-web.git
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT HUP INT TERM
@@ -42,7 +42,8 @@ cat > "$pkg/usr/share/doc/jellyfin-web/README.mbligh" <<EOF
 Jellyfin Web 12.4 from https://github.com/mbligh/jellyfin-web
 Git revision: $SOURCE_COMMIT
 Patch branch: mbligh-v12.4
-Shows series posters in portrait Next Up cards by default.
+Shows series/movie posters in portrait Next Up and Continue Watching cards by default.
+Season episode thumbnails are widescreen 16:9.
 No runtime Node.js/npm dependency.
 EOF
 # Preserve existing admin edits to the upstream-configured conffile.
@@ -56,8 +57,9 @@ Architecture: all
 Maintainer: mbligh <noreply@github.com>
 Recommends: jellyfin-server
 Homepage: https://github.com/mbligh/jellyfin-web
-Description: Jellyfin Web client (mbligh Next Up series-poster patch)
- Jellyfin 12.4 static web client with portrait series art in Next Up.
+Description: Jellyfin Web client (mbligh poster and episode-image patches)
+ Jellyfin 12.4 frontend with portrait series/movie art in Next Up and
+ Continue Watching, plus widescreen 16:9 episode thumbnails.
  Includes no Node.js or npm runtime dependency.
 EOF
 # Normalize archive timestamps so rebuilding the pinned source is repeatable.
