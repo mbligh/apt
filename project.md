@@ -22,6 +22,10 @@ tokens are needed. The APT workflow runs on recipe changes or manual dispatch;
 fork source commits alone do not trigger a new APT build.
 
 ## Active build/publishing architecture (November 2026)
+## get-iplayer package
+
+Import the openSUSE Build Service `home:m-grant-prg` Debian 13 package `get-iplayer_3.36-1+deb13u3_all.deb` unchanged. Source URL: `https://download.opensuse.org/repositories/home:/m-grant-prg/Debian_13/all/get-iplayer_3.36-1+deb13u3_all.deb`. Pin its openSUSE-published SHA-256 (`35e7c205cdf0b2dd0d9b1b6affbda67596a9a014660301b56197393c85b8e2bf`), verify the Debian package name, version and architecture, and validate clean installation plus `get_iplayer --version` on Debian 13 before uploading through the standard R2 staging/signing pipeline. The upstream package is third-party, not an official Debian package; moving to another upstream release requires explicitly updating the version and digest. No automatic periodic update is configured.
+
 
 The repository is served from **Cloudflare R2** at `https://apt.mbligh.org` (Debian 13/trixie, amd64 and all).
 
