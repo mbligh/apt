@@ -16,6 +16,7 @@ jobs:
   preflight:
     if: startsWith(inputs.package, 'pypi-')
     runs-on: ubuntu-24.04
+    environment: github-pages
     outputs:
       build: ${{ steps.check.outputs.build }}
     steps:
@@ -28,9 +29,21 @@ jobs:
           PACKAGE: ${{ inputs.package }}
           BEFORE_SHA: ${{ github.event.before }}
           GITHUB_EVENT_NAME: ${{ github.event_name }}
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          AWS_EC2_METADATA_DISABLED: 'true'
         run: |
           set -euo pipefail
-          python3 scripts/check-pypi-build --package "${PACKAGE#pypi-}" --output "$GITHUB_OUTPUT"
+          for variable in R2_ACCOUNT_ID AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY; do
+            test -n "${!variable}" || { echo "::error::Missing R2 secret: $variable"; exit 1; }
+          done
+          aws --endpoint-url "https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com" s3api get-object \
+            --bucket mbligh-apt --key dists/trixie/main/binary-amd64/Packages.gz \
+            /tmp/apt-Packages.gz >/dev/null
+          python3 scripts/check-pypi-build --package "${PACKAGE#pypi-}" \
+            --index-file /tmp/apt-Packages.gz --output "$GITHUB_OUTPUT"
   build:
     needs: preflight
     if: ${{ always() && (needs.preflight.result == 'skipped' || (needs.preflight.result == 'success' && needs.preflight.outputs.build == 'true')) }}

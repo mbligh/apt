@@ -10,9 +10,6 @@ import os
 from pathlib import Path
 import re
 import subprocess
-import urllib.request
-
-INDEX = "https://apt.mbligh.org/dists/trixie/main/binary-amd64/Packages.gz"
 
 
 def normalize(name):
@@ -93,9 +90,8 @@ def require_revision_bump(package, version, revision):
         raise RuntimeError(f"Debian revision for {package} went backwards")
 
 
-def already_published(package, version, revision):
-    with urllib.request.urlopen(INDEX, timeout=30) as response:
-        data = gzip.decompress(response.read()).decode("utf-8")
+def already_published(package, version, revision, index_file):
+    data = gzip.decompress(index_file.read_bytes()).decode("utf-8")
     wanted = f"{version}-{revision}"
     for paragraph in data.split("\n\n"):
         fields = {}
@@ -114,6 +110,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--package", required=True)
     parser.add_argument("--output", required=True)
+    parser.add_argument("--index-file", type=Path, required=True)
     args = parser.parse_args()
     package = normalize(args.package)
     pins = manifest(Path("pypi-packages.txt").read_text())
@@ -122,7 +119,7 @@ def main():
         raise RuntimeError("Missing pinned version or Debian revision: " + package)
     version, revision = pins[package], revision_map[package]
     require_revision_bump(package, version, revision)
-    build = not already_published(package, version, revision)
+    build = not already_published(package, version, revision, args.index_file)
     with open(args.output, "a") as output:
         output.write(f"build={'true' if build else 'false'}\n")
     if build:
