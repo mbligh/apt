@@ -11,6 +11,7 @@ on:
       - 'pypi-packages.txt'
       - 'pypi-exposed.txt'
       - 'scripts/build-pypi-debs'
+      - 'scripts/check-pypi-build'
       - 'pypi-locks/plexapi.txt'
       - 'pypi-revisions.txt'
       - '.github/workflows/package-pypi-plexapi.yml'

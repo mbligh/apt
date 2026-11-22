@@ -10,6 +10,7 @@ on:
     paths:
       - 'pypi-packages.txt'
       - 'scripts/build-pypi-debs'
+      - 'scripts/check-pypi-build'
       - 'pypi-locks/roombapy-prime.txt'
       - 'pypi-revisions.txt'
       - 'pypi-exposed.txt'

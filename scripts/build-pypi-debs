@@ -168,7 +168,11 @@ def build(requirement, canonical, output, python, revision, lock, expose_imports
         os.utime(payload, (946684800, 946684800))
         output.mkdir(parents=True, exist_ok=True)
         deb = output / f'pypi-{canonical}_{version}-{revision}_{architecture}.deb'
-        run('dpkg-deb', '--build', '--root-owner-group', str(payload), str(deb))
+        # dpkg-deb otherwise puts the current build time in the outer ar headers.
+        # Match the normalized payload timestamps for byte-identical reruns.
+        env = os.environ.copy()
+        env['SOURCE_DATE_EPOCH'] = '946684800'
+        run('dpkg-deb', '--build', '--root-owner-group', str(payload), str(deb), env=env)
         run('dpkg-deb', '--info', str(deb))
         print(f'BUILT {deb}')
 

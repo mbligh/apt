@@ -1,0 +1,135 @@
+#!/usr/bin/env python3
+"""Skip PyPI builds when the exact pinned Debian version is already published.
+
+A push changing the package's local inputs must advance its Debian revision
+when the pinned upstream version stays unchanged.
+"""
+import argparse
+import gzip
+import os
+from pathlib import Path
+import re
+import subprocess
+import urllib.request
+
+INDEX = "https://apt.mbligh.org/dists/trixie/main/binary-amd64/Packages.gz"
+
+
+def normalize(name):
+    return re.sub(r"[-_.]+", "-", name).lower()
+
+
+def manifest(content):
+    result = {}
+    for line in content.splitlines():
+        item = line.split("#", 1)[0].strip()
+        if not item:
+            continue
+        if item.count("==") != 1:
+            raise ValueError("PyPI packages must be pinned: " + item)
+        name, version = item.split("==", 1)
+        result[normalize(name)] = version
+    return result
+
+
+def revisions(content):
+    result = {}
+    for line in content.splitlines():
+        parts = line.split("#", 1)[0].split()
+        if parts:
+            if len(parts) != 2 or not parts[1].isdigit():
+                raise ValueError("Invalid Debian revision: " + line)
+            result[normalize(parts[0])] = int(parts[1])
+    return result
+
+
+def exposed(content, package):
+    return package in {
+        normalize(line.split("#", 1)[0].strip().split("==")[0])
+        for line in content.splitlines()
+        if line.split("#", 1)[0].strip()
+    }
+
+
+def old_file(base, path):
+    result = subprocess.run(
+        ["git", "show", base + ":" + path],
+        check=False, capture_output=True, text=True,
+    )
+    return result.stdout if result.returncode == 0 else None
+
+
+def require_revision_bump(package, version, revision):
+    base = os.environ.get("BEFORE_SHA", "")
+    if (os.environ.get("GITHUB_EVENT_NAME") != "push"
+            or not re.fullmatch("[0-9a-f]{40}", base)
+            or set(base) == {"0"}):
+        return
+    old_manifest = old_file(base, "pypi-packages.txt")
+    old_revisions = old_file(base, "pypi-revisions.txt")
+    if old_manifest is None or old_revisions is None:
+        raise RuntimeError("Cannot inspect the previous revision from " + base)
+    # A new upstream version has a new Debian identity even without a revision bump.
+    if manifest(old_manifest).get(package) != version:
+        return
+    previous_revision = revisions(old_revisions).get(package)
+    if previous_revision is None:
+        return
+
+    lock = "pypi-locks/" + package + ".txt"
+    changed = (
+        old_file(base, lock) != Path(lock).read_text()
+        or old_file(base, "scripts/build-pypi-debs")
+           != Path("scripts/build-pypi-debs").read_text()
+        or exposed(old_file(base, "pypi-exposed.txt") or "", package)
+           != exposed(Path("pypi-exposed.txt").read_text(), package)
+    )
+    if changed and revision <= previous_revision:
+        raise RuntimeError(
+            f"Packaging inputs for {package} changed without a Debian revision "
+            f"bump (currently {revision}, previously {previous_revision})"
+        )
+    if revision < previous_revision:
+        raise RuntimeError(f"Debian revision for {package} went backwards")
+
+
+def already_published(package, version, revision):
+    with urllib.request.urlopen(INDEX, timeout=30) as response:
+        data = gzip.decompress(response.read()).decode("utf-8")
+    wanted = f"{version}-{revision}"
+    for paragraph in data.split("\n\n"):
+        fields = {}
+        for line in paragraph.splitlines():
+            if line and not line[0].isspace() and ": " in line:
+                key, value = line.split(": ", 1)
+                fields[key] = value
+        if (fields.get("Package") == "pypi-" + package
+                and fields.get("Version") == wanted
+                and fields.get("Filename") and fields.get("SHA256")):
+            return True
+    return False
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--package", required=True)
+    parser.add_argument("--output", required=True)
+    args = parser.parse_args()
+    package = normalize(args.package)
+    pins = manifest(Path("pypi-packages.txt").read_text())
+    revision_map = revisions(Path("pypi-revisions.txt").read_text())
+    if package not in pins or package not in revision_map:
+        raise RuntimeError("Missing pinned version or Debian revision: " + package)
+    version, revision = pins[package], revision_map[package]
+    require_revision_bump(package, version, revision)
+    build = not already_published(package, version, revision)
+    with open(args.output, "a") as output:
+        output.write(f"build={'true' if build else 'false'}\n")
+    if build:
+        print(f"::notice::Unpublished pypi-{package} {version}-{revision}; build required")
+    else:
+        print(f"::notice::pypi-{package} {version}-{revision} already published; skipping build")
+
+
+if __name__ == "__main__":
+    main()

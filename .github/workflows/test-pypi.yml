@@ -1,15 +1,6 @@
 name: Test PyPI Debian packages
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - 'pypi-packages.txt'
-      - 'scripts/build-pypi-debs'
-      - 'pypi-exposed.txt'
-      - 'pypi-revisions.txt'
-      - 'pypi-locks/**'
-      - '.github/workflows/test-pypi.yml'
 jobs:
   build:
     runs-on: ubuntu-24.04

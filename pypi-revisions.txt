@@ -1,4 +1,4 @@
 # Bump whenever the lock or packaging changes.
-duckdb 3
-plexapi 3
-roombapy-prime 3
+duckdb 4
+plexapi 4
+roombapy-prime 4

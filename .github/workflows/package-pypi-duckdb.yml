@@ -10,12 +10,11 @@ on:
     paths:
       - 'pypi-packages.txt'
       - 'scripts/build-pypi-debs'
+      - 'scripts/check-pypi-build'
       - 'pypi-locks/duckdb.txt'
       - 'pypi-revisions.txt'
       - 'pypi-exposed.txt'
   workflow_dispatch:
-  schedule:
-    - cron: '17 5 * * 0'
 
 jobs:
   build:

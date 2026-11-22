@@ -13,7 +13,27 @@ permissions:
   actions: write  # Dispatch the index publisher only for staged packages
 
 jobs:
+  preflight:
+    if: startsWith(inputs.package, 'pypi-')
+    runs-on: ubuntu-24.04
+    outputs:
+      build: ${{ steps.check.outputs.build }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Check PyPI package version before installing build dependencies
+        id: check
+        env:
+          PACKAGE: ${{ inputs.package }}
+          BEFORE_SHA: ${{ github.event.before }}
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          python3 scripts/check-pypi-build --package "${PACKAGE#pypi-}" --output "$GITHUB_OUTPUT"
   build:
+    needs: preflight
+    if: ${{ always() && (needs.preflight.result == 'skipped' || (needs.preflight.result == 'success' && needs.preflight.outputs.build == 'true')) }}
     runs-on: ubuntu-24.04
     environment: github-pages
     steps:
