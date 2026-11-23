@@ -71,7 +71,7 @@ jobs:
         with:
           python-version: '3.13'
       - name: Require private tools deploy key
-        if: inputs.package == 'mbligh-tools'
+        if: inputs.package == 'mbligh-tools' || inputs.package == 'cfsolve'
         env:
           TOOLS_DEPLOY_KEY: ${{ secrets.TOOLS_DEPLOY_KEY }}
         run: |
@@ -88,6 +88,19 @@ jobs:
           fetch-depth: 0
           sparse-checkout: |
             tools/g
+          sparse-checkout-cone-mode: false
+      - name: Checkout tools/video/cf-curl for cfsolve
+        if: inputs.package == 'cfsolve'
+        uses: actions/checkout@v5
+        with:
+          repository: mbligh/tools
+          ref: master
+          ssh-key: ${{ secrets.TOOLS_DEPLOY_KEY }}
+          path: private-tools
+          persist-credentials: false
+          fetch-depth: 0
+          sparse-checkout: |
+            video/cf-curl
           sparse-checkout-cone-mode: false
       - name: Stage tools/g with source-derived version
         if: inputs.package == 'mbligh-tools'
@@ -178,6 +191,30 @@ jobs:
                 apt-get install -y --no-install-recommends /pkgs/ytdl-sub_*.deb
                 env -u SSL_CERT_FILE timeout 60 ytdl-sub -h > /tmp/ytdl-sub-help.txt
                 test -s /tmp/ytdl-sub-help.txt
+              '
+              ;;
+            cfsolve)
+              docker run --rm -v "$PWD/dist:/pkgs:ro" debian:trixie sh -ec '
+                apt-get update -qq
+                apt-get install -y --no-install-recommends /pkgs/cfsolve_*.deb
+                test -x /usr/bin/cfsolve
+                test -x /usr/bin/challenge
+                test -x /usr/bin/cf-curl
+                test -s /usr/share/cfsolve/profiles/safari-26-ios.json
+                cfsolve --help >/dev/null
+                challenge --help >/dev/null
+                cf-curl --help >/dev/null
+                python3 - <<"PY"
+import os, runpy
+from pathlib import Path
+for name in ("CFSOLVE_DIR", "CFSOLVE_BIN", "CFSOLVE_PROFILE"):
+    os.environ.pop(name, None)
+ns = runpy.run_path("/usr/bin/cf-curl")
+binary, profile = ns["backend_paths"]()
+assert binary == Path("/usr/bin/cfsolve"), binary
+assert profile == Path("/usr/share/cfsolve/profiles/safari-26-ios.json"), profile
+assert ns["profile_user_agent"](profile), "profile User-Agent not readable"
+PY
               '
               ;;
             pmtiles)
