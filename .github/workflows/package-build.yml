@@ -208,11 +208,12 @@ jobs:
               '
               ;;
             opencode)
-              docker run --rm -v "$PWD/dist:/pkgs:ro" debian:trixie sh -ec '
+              . packages/opencode/version
+              docker run --rm -e OPENCODE_EXPECTED_VERSION="$VERSION" -v "$PWD/dist:/pkgs:ro" debian:trixie sh -ec '
                 apt-get update -qq
                 apt-get install -y --no-install-recommends /pkgs/opencode_*.deb
                 command -v opencode
-                timeout 30 opencode --version | grep -Fq 2.4.1
+                timeout 30 opencode --version | grep -Fq "$OPENCODE_EXPECTED_VERSION"
                 timeout 30 opencode --help > /tmp/opencode-help.txt
                 test -s /tmp/opencode-help.txt
                 test ! -e /usr/bin/npm
