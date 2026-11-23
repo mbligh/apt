@@ -1,0 +1,20 @@
+name: Build cfsolve and cf-curl
+
+permissions:
+  contents: read
+  actions: write  # Reusable builder requests R2 signing/index publication
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'packages/cfsolve/**'
+      - '.github/workflows/package-cfsolve.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    uses: ./.github/workflows/package-build.yml
+    with:
+      package: cfsolve
+    secrets: inherit
