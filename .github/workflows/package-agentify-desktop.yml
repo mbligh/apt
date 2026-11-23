@@ -10,6 +10,7 @@ on:
     paths:
       - 'packages/agentify-desktop/**'
       - '.github/workflows/package-agentify-desktop.yml'
+      - '.github/workflows/package-build.yml'
   workflow_dispatch:
 
 jobs:

@@ -212,6 +212,10 @@ jobs:
               docker run --rm -e AGENTIFY_EXPECTED_VERSION="$VERSION" \
                 -v "$PWD/dist:/pkgs:ro" debian:trixie sh -ec '
                 apt-get update -qq
+                apt-get install -y --no-install-recommends ca-certificates curl
+                curl -fLsS --retry 3 https://apt.mbligh.org/mbligh-archive-keyring.gpg -o /usr/share/keyrings/mbligh-archive-keyring.gpg
+                echo "deb [signed-by=/usr/share/keyrings/mbligh-archive-keyring.gpg] https://apt.mbligh.org trixie main" > /etc/apt/sources.list.d/mbligh.list
+                apt-get update -qq
                 apt-get install -y --no-install-recommends /pkgs/agentify-desktop_*.deb
                 test "$(node24 -p "require(\"/usr/lib/agentify-desktop/package.json\").version")" = "$AGENTIFY_EXPECTED_VERSION"
                 command -v agentify-desktop
