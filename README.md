@@ -35,6 +35,8 @@ The legacy `publish-apt.yml` is a manual-only GitHub Pages fallback. The histori
 
 - `ytdl-sub`: upstream 2026.11.10.post2 standalone Linux amd64 binary, repackaged as `2026.11.10.post2-2`. Provides `ytdl-sub` for automated subscriptions and Plex/Jellyfin metadata; depends on FFmpeg and Debian's `ca-certificates`, and recommends Deno. Its launcher defaults `SSL_CERT_FILE` to `/etc/ssl/certs/ca-certificates.crt` (unless already set) so the bundled PyInstaller Python can verify HTTPS channel-artwork downloads. The upstream release is SHA-256 verified.
 
+- `opencode`: OpenCode v2.4.1 CLI packaged as `2.4.1-1` from the official SHA-256-pinned Linux x64 **baseline** standalone archive (portable to older Xeon CPUs). Installs `/usr/bin/opencode` with **no npm, Node.js, or Bun package dependency**. The per-package workflow checks the published APT index before downloading; an unchanged version is skipped on manual runs, and source changes require a Debian revision bump. Install using `sudo apt install opencode` after publication.
+
 - `pmtiles`: upstream go-pmtiles v1.31.2 CLI, packaged for Debian amd64. Provides the full `pmtiles` command and all of its upstream subcommands, including `extract`, `show`, `verify`, `convert`, and `serve`. This is distinct from Tippecanoe's `tippecanoe-decode` (a separate upstream project).
 
 - `imapsync`: upstream 2.314 Debian package, imported for copying selected IMAP folders between servers (such as Dovecot and Gmail). Install with `sudo apt install imapsync` after publication.

@@ -1,0 +1,6 @@
+# Pin the upstream release and GitHub-published SHA-256 digest.
+# Bump REVISION for any change affecting package contents.
+VERSION=2.4.1
+REVISION=1
+SOURCE_DATE_EPOCH=1795449460
+SHA256=9ddd18e3faf64eaeccf6a0fcbc96a5c7a14520ae5fd5b61e5be51d894f478b47

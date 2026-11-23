@@ -1,5 +1,27 @@
 # mbligh apt repository — project outline
 
+## OpenCode CLI v2 packaging (no npm)
+
+Package the official OpenCode v2 Linux glibc x86-64 **baseline** CLI binary,
+not the desktop application and not an npm package. Pin the upstream release
+version, GitHub-published SHA-256 digest and release timestamp in
+`packages/opencode/version`; fetch the exact tarball by version and
+verify it before extracting the single executable. Install the bundled-runtime
+binary at `/usr/bin/opencode` and the upstream MIT license under
+`/usr/share/doc/opencode`. No npm, Node.js, Bun, or other
+JavaScript build step is involved.
+
+Normalize package file timestamps and use SOURCE_DATE_EPOCH to keep the
+same version/revision byte-for-byte reproducible. The separate
+`package-opencode.yml` workflow checks the published APT index
+before retrieving the 130 MB upstream archive; manual rebuilds skip an
+already-indexed version, and a packaging change with an already published
+version fails until REVISION is bumped. The reusable build job smoke-tests
+installation, `--version`, and `--help` in a clean Debian 13
+container and checks that npm, Node.js and Bun are not package dependencies.
+Successful builds use the existing immutable R2 staging and signed-index path.
+
+
 ## cfsolve and cf-curl Debian 13 package (November 2026)
 
 `packages/cfsolve/build.sh` repackages the immutable `challenge` executable

@@ -1,0 +1,58 @@
+name: Build opencode
+
+permissions:
+  contents: read
+  actions: write  # Allow the reusable build to dispatch index publication
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'packages/opencode/**'
+      - '.github/workflows/package-opencode.yml'
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    outputs:
+      build: ${{ steps.version.outputs.build }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: Check published version before downloading upstream binary
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          source packages/opencode/version
+          package_version="${VERSION}-${REVISION}"
+          curl -fLsS --retry 3 \
+            https://apt.mbligh.org/dists/trixie/main/binary-amd64/Packages.gz \
+            -o /tmp/opencode-Packages.gz
+          if gzip -cd /tmp/opencode-Packages.gz | awk -v wanted="$package_version" '
+              BEGIN { RS = "" }
+              /(^|\n)Package: opencode(\n|$)/ {
+                n = split($0, lines, "\n")
+                for (i = 1; i <= n; i++)
+                  if (lines[i] == "Version: " wanted) found = 1
+              }
+              END { exit !found }
+            '; then
+            if [[ "$GITHUB_EVENT_NAME" == push ]]; then
+              echo "::error::opencode $package_version is already published. Bump REVISION when changing its packaging."
+              exit 1
+            fi
+            echo "opencode $package_version already published; skipping download and rebuild."
+            echo "build=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "opencode $package_version is not yet published; build needed."
+            echo "build=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  build:
+    needs: check
+    if: needs.check.outputs.build == 'true'
+    uses: ./.github/workflows/package-build.yml
+    with:
+      package: opencode
+    secrets: inherit
