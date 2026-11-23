@@ -1,5 +1,23 @@
 # mbligh apt repository — project outline
 
+## cfsolve and cf-curl Debian 13 package (November 2026)
+
+`packages/cfsolve/build.sh` repackages the immutable `challenge` executable
+and browser profile tree from the public `mbligh/cfsolve` Debian 13 GitHub
+Release, together with `video/cf-curl` checked out from private `mbligh/tools`
+using the pre-existing read-only `TOOLS_DEPLOY_KEY`. Installs
+`/usr/bin/cfsolve`, its `/usr/bin/challenge` symlink, `/usr/bin/cf-curl`,
+and full `/usr/share/cfsolve/profiles`. The wrapper now prefers this Debian
+profile path while retaining its `/usr/local` and source-checkout options.
+
+Binary release archive and SHA256SUMS are verified against GitHub release asset
+digests. Package versions contain the most recent source timestamp and both
+source commit identifiers; packaging-only changes require incrementing the
+Debian revision. The standard one-package workflow builds, validates clean
+Debian 13 installation, stages to R2 and triggers signing/indexing only when
+there is a new package. See `packages/cfsolve/README.md`.
+No Rust toolchain or build container is required on installed hosts.
+
 ## Patched jellyfin-web (12.4) packaging
 
 `packages/jellyfin-web/build.sh` fetches a pinned commit of the
