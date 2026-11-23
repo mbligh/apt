@@ -1,5 +1,26 @@
 # mbligh apt repository — project outline
 
+## Agentify Desktop 0.2.4 package
+
+Packages upstream Agentify Desktop from the exact release-commit pin in
+`packages/agentify-desktop/version`. There are no Linux release binaries.
+The CI build uses `npm ci --omit=dev --ignore-scripts` against upstream's
+integrity-checked lockfile, then installs the matching Electron binary.
+It bundles the source app, production dependencies and Electron under
+`/usr/lib/agentify-desktop`. Launchers in `/usr/bin` call the existing
+`nodejs24` package; no npm/npx is required on installed hosts.
+Electron's sandbox helper retains setuid mode, rather than disabling sandbox.
+
+The package has its own version preflight to skip unchanged published builds,
+and uses the shared Debian 13 smoke tests and immutable R2 publisher. A
+Debian revision bump is required whenever packaging contents change.
+
+A graphical desktop session is needed for the browser. OpenCode should be
+configured to invoke `agentify-desktop mcp` over stdio on the same machine.
+Upstream code is MPL-2.0; upstream TRADEMARKS.md reserves product branding.
+This is an unofficial repackage and does not imply upstream endorsement.
+
+
 ## OpenCode CLI v2 packaging (no npm)
 
 Package the official OpenCode v2 Linux glibc x86-64 **baseline** CLI binary,

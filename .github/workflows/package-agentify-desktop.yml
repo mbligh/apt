@@ -1,0 +1,56 @@
+name: Build agentify-desktop
+
+permissions:
+  contents: read
+  actions: write
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'packages/agentify-desktop/**'
+      - '.github/workflows/package-agentify-desktop.yml'
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    outputs:
+      build: ${{ steps.version.outputs.build }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: Check published version before downloading dependencies
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          source packages/agentify-desktop/version
+          package_version="${VERSION}-${REVISION}"
+          curl -fLsS --retry 3 \
+            https://apt.mbligh.org/dists/trixie/main/binary-amd64/Packages.gz \
+            -o /tmp/agentify-Packages.gz
+          if gzip -cd /tmp/agentify-Packages.gz | awk -v wanted="$package_version" '
+              BEGIN { RS = "" }
+              /(^|\n)Package: agentify-desktop(\n|$)/ {
+                n = split($0, lines, "\n")
+                for (i = 1; i <= n; i++)
+                  if (lines[i] == "Version: " wanted) found = 1
+              }
+              END { exit !found }
+            '; then
+            if [[ "$GITHUB_EVENT_NAME" == push ]]; then
+              echo "::error::Already published $package_version; bump REVISION for packaging changes."
+              exit 1
+            fi
+            echo "build=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "build=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  build:
+    needs: check
+    if: needs.check.outputs.build == 'true'
+    uses: ./.github/workflows/package-build.yml
+    with:
+      package: agentify-desktop
+    secrets: inherit

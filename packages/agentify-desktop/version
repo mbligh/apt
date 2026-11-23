@@ -1,0 +1,5 @@
+# Pin the exact upstream source release. Bump REVISION for packaging changes.
+VERSION=0.2.4
+REVISION=1
+UPSTREAM_COMMIT=d20e2e3fed6677cc5b4df1c03dd37d2b8161e1dd
+SOURCE_DATE_EPOCH=1779075408

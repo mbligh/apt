@@ -56,7 +56,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends dpkg-dev curl unzip alien rpm fakeroot python3-venv python3-pip
       - name: Install Node 24 for JavaScript builds
-        if: inputs.package == 'desktop-commander' || inputs.package == 'metube' || inputs.package == 'jellyfin-web'
+        if: inputs.package == 'desktop-commander' || inputs.package == 'metube' || inputs.package == 'jellyfin-web' || inputs.package == 'agentify-desktop'
         uses: actions/setup-node@v4
         with:
           node-version: '24'
@@ -206,6 +206,33 @@ jobs:
                 cf-curl --help >/dev/null
                 python3 -c "import os,runpy; from pathlib import Path; [os.environ.pop(k,None) for k in (\"CFSOLVE_DIR\",\"CFSOLVE_BIN\",\"CFSOLVE_PROFILE\")]; ns=runpy.run_path(\"/usr/bin/cf-curl\"); binary,profile=ns[\"backend_paths\"](); assert binary == Path(\"/usr/bin/cfsolve\"),binary; assert profile == Path(\"/usr/share/cfsolve/profiles/safari-26-ios.json\"),profile; assert ns[\"profile_user_agent\"](profile)"
               '
+              ;;
+            agentify-desktop)
+              . packages/agentify-desktop/version
+              docker run --rm -e AGENTIFY_EXPECTED_VERSION="$VERSION" \
+                -v "$PWD/dist:/pkgs:ro" debian:trixie sh -ec '
+                apt-get update -qq
+                apt-get install -y --no-install-recommends /pkgs/agentify-desktop_*.deb
+                test "$(node24 -p "require(\"/usr/lib/agentify-desktop/package.json\").version")" = "$AGENTIFY_EXPECTED_VERSION"
+                command -v agentify-desktop
+                command -v agentify-desktop-mcp
+                command -v agentify-desktop-gui
+                agentify-desktop --help | grep -Fq "Agentify Desktop"
+                agentify-desktop-mcp --help | grep -Fq "Agentify Desktop"
+                test -x /usr/lib/agentify-desktop/node_modules/electron/dist/electron
+                test -u /usr/lib/agentify-desktop/node_modules/electron/dist/chrome-sandbox
+                test ! -e /usr/bin/npm
+                node24 --check /usr/lib/agentify-desktop/main.mjs
+                node24 --check /usr/lib/agentify-desktop/mcp-server.mjs
+                if ldd /usr/lib/agentify-desktop/node_modules/electron/dist/electron | grep -F "not found"; then
+                  echo "Missing Electron shared libraries" >&2
+                  exit 1
+                fi
+              '
+              if dpkg-deb -f dist/agentify-desktop_*.deb Depends | grep -Eq '(^|[, ])(npm|npx)([, (]|$)'; then
+                echo "::error::npm/npx runtime dependency is forbidden"
+                exit 1
+              fi
               ;;
             opencode)
               . packages/opencode/version
