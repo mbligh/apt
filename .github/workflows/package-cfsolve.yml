@@ -1,3 +1,4 @@
+# Dispatch after upstream cfsolve releases or tools/video/cf-curl changes.
 name: Build cfsolve and cf-curl
 
 permissions:
