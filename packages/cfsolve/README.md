@@ -56,3 +56,9 @@ A new `mbligh/cfsolve` release or change to `video/cf-curl` requires a new
 run of `package-cfsolve.yml` (manual dispatch); it is not automatically
 cross-repository dispatched. The package workflow deliberately does not run
 daily when both upstream inputs are unchanged.
+
+## Diagnostics
+
+The workflow uploads `debian-packages` artifacts containing the exact
+`.deb` sent to the R2 staging service. If the build fails, inspect the
+`Build cfsolve and cf-curl` workflow run before installing the package.
