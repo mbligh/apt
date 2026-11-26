@@ -53,8 +53,16 @@ jobs:
       - uses: actions/checkout@v5
       - name: Install packaging prerequisites
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends dpkg-dev curl unzip alien rpm fakeroot python3-venv python3-pip
+          # These prerequisites are all from Ubuntu. Do not let unrelated
+          # third-party repositories on the hosted runner break this build.
+          test -s /etc/apt/sources.list.d/ubuntu.sources
+          apt_options=(
+            -o Dir::Etc::sourcelist=/etc/apt/sources.list.d/ubuntu.sources
+            -o Dir::Etc::sourceparts=-
+            -o Acquire::Retries=3
+          )
+          sudo apt-get "${apt_options[@]}" -o APT::Update::Error-Mode=any update
+          sudo apt-get "${apt_options[@]}" install -y --no-install-recommends dpkg-dev curl unzip alien rpm fakeroot python3-venv python3-pip
       - name: Install Node 24 for JavaScript builds
         if: inputs.package == 'desktop-commander' || inputs.package == 'metube' || inputs.package == 'jellyfin-web' || inputs.package == 'agentify-desktop'
         uses: actions/setup-node@v4
