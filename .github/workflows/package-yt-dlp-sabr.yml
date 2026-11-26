@@ -9,6 +9,7 @@ on:
     branches: [main]
     paths:
       - 'packages/yt-dlp-sabr/**'
+      - '.github/workflows/package-yt-dlp-sabr.yml'
   workflow_dispatch:
   schedule:
     - cron: '23 */6 * * *'
