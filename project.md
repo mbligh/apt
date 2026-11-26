@@ -92,6 +92,8 @@ Import the openSUSE Build Service `home:m-grant-prg` Debian 13 package `get-ipla
 
 The repository is served from **Cloudflare R2** at `https://apt.mbligh.org` (Debian 13/trixie, amd64 and all).
 
+The shared Ubuntu 24.04 build job installs its packaging prerequisites using only the runner's official Ubuntu APT sources (`/etc/apt/sources.list.d/ubuntu.sources`), with three download retries and strict update-error handling. Unrelated preconfigured third-party repositories cannot block this setup; APT signature verification remains enabled. This runner-only change does not change Debian package contents or revisions.
+
 Each package has **one** GitHub Actions job: build, verify, upload the GitHub artifact, then upload immutable `.deb` objects directly to R2. Already-indexed packages with an identical SHA-256 are no-ops; same-version/different-byte builds fail and require a revision bump.
 
 New or recovered uploads are recorded in durable `pending/<run-id>.json` manifests in R2. The serialized `publish-r2.yml` consumes these manifests, verifies the referenced objects, **only** regenerates and signs APT metadata, and removes markers after publishing `InRelease`. A failed index can be retried manually with the original build run ID, or with a blank run ID to reconcile all pending uploads, without rebuilding or uploading `.deb` files.
