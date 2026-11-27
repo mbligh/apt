@@ -2,7 +2,7 @@
 
 ## ytdl-sub package
 
-Repackage the upstream self-contained Linux amd64 executable with a pinned release and GitHub-published SHA-256. Version `2026.11.26-1` bundles yt-dlp `2026.11.23`, which fixes the November 23 YouTube n-challenge regression (yt-dlp #18123). The embedded yt-dlp is independent of the standalone yt-dlp-sabr package. Keep the existing CA trust wrapper and Debian installation smoke test. Release discovery remains manual; update the version and digest together to publish new upstream releases.
+Repackage the latest stable upstream self-contained Linux amd64 executable. The package workflow checks GitHub release metadata every six hours and on manual dispatch or recipe changes. It requires the published asset SHA-256, passes the resolved release version, asset ID, digest and timestamp into the build, and checks the public APT index before downloading the binary. Published versions at or above the candidate are skipped; recipe changes at the same published version require increasing `packages/ytdl-sub/revision`. Release `2026.11.26` bundles yt-dlp `2026.11.23`, which fixes the November 23 YouTube n-challenge regression (yt-dlp #18123). The embedded yt-dlp is independent of standalone yt-dlp-sabr. Normalize archive timestamps, keep the CA trust wrapper and Debian installation smoke test, and publish new packages through the existing signed R2 index path. Upstream prereleases and same-version asset replacements are not automatically repackaged.
 
 ## Agentify Desktop 0.2.4 package
 

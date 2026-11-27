@@ -14,16 +14,18 @@ permissions:
 
 jobs:
   preflight:
-    if: startsWith(inputs.package, 'pypi-')
+    if: startsWith(inputs.package, 'pypi-') || inputs.package == 'ytdl-sub'
     runs-on: ubuntu-24.04
     environment: github-pages
     outputs:
-      build: ${{ steps.check.outputs.build }}
+      build: ${{ steps.check.outputs.build || steps.ytdl.outputs.build }}
+      ytdl_sub_release: ${{ steps.ytdl.outputs.release }}
     steps:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
       - name: Check PyPI package version before installing build dependencies
+        if: startsWith(inputs.package, 'pypi-')
         id: check
         env:
           PACKAGE: ${{ inputs.package }}
@@ -44,6 +46,64 @@ jobs:
             /tmp/apt-Packages.gz >/dev/null
           python3 scripts/check-pypi-build --package "${PACKAGE#pypi-}" \
             --index-file /tmp/apt-Packages.gz --output "$GITHUB_OUTPUT"
+      - name: Resolve latest ytdl-sub release and check published version
+        if: inputs.package == 'ytdl-sub'
+        id: ytdl
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BEFORE_SHA: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+          curl -fLsS --retry 3 -H "Authorization: Bearer $GH_TOKEN" \
+            https://api.github.com/repos/jmbannon/ytdl-sub/releases/latest \
+            -o /tmp/ytdl-sub-release.json
+          release=$(python3 packages/ytdl-sub/release-info < /tmp/ytdl-sub-release.json)
+          read -r version asset_id digest epoch <<< "$release"
+          revision=$(cat packages/ytdl-sub/revision)
+          [[ "$revision" =~ ^[1-9][0-9]*$ ]]
+          wanted="$version-$revision"
+          curl -fLsS --retry 3 \
+            https://apt.mbligh.org/dists/trixie/main/binary-amd64/Packages.gz \
+            -o /tmp/ytdl-sub-Packages.gz
+          gzip -cd /tmp/ytdl-sub-Packages.gz > /tmp/ytdl-sub-Packages
+          # Validate the index before treating a missing package as unpublished.
+          grep -q '^Package: ' /tmp/ytdl-sub-Packages
+          mapfile -t published < <(awk '
+            BEGIN { RS = ""; FS = "\n" }
+            {
+              package = version = arch = filename = digest = ""
+              for (i=1; i<=NF; i++) {
+                if ($i ~ /^Package: /) package = substr($i, 10)
+                if ($i ~ /^Version: /) version = substr($i, 10)
+                if ($i ~ /^Architecture: /) arch = substr($i, 15)
+                if ($i ~ /^Filename: /) filename = substr($i, 11)
+                if ($i ~ /^SHA256: /) digest = substr($i, 9)
+              }
+              if (package == "ytdl-sub" && arch == "amd64" && version != "" && filename != "" && digest != "")
+                print version
+            }
+          ' /tmp/ytdl-sub-Packages)
+          for existing in "${published[@]}"; do
+            if dpkg --compare-versions "$existing" ge "$wanted"; then
+              if [[ "$existing" == "$wanted" && "$GITHUB_EVENT_NAME" == push ]]; then
+                git cat-file -e "${BEFORE_SHA}^{commit}" || {
+                  echo "::error::Cannot inspect push base to verify revision bump."
+                  exit 1
+                }
+                if ! git diff --quiet "$BEFORE_SHA" HEAD -- packages/ytdl-sub/; then
+                  echo "::error::Already published $wanted; bump packages/ytdl-sub/revision for packaging changes."
+                  exit 1
+                fi
+              fi
+              echo "ytdl-sub $existing already published (candidate $wanted); skipping download and build."
+              echo "build=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          done
+          echo "Unpublished ytdl-sub $wanted; build required."
+          echo "build=true" >> "$GITHUB_OUTPUT"
+          echo "release=$release" >> "$GITHUB_OUTPUT"
   build:
     needs: preflight
     if: ${{ always() && (needs.preflight.result == 'skipped' || (needs.preflight.result == 'success' && needs.preflight.outputs.build == 'true')) }}
@@ -125,6 +185,7 @@ jobs:
         env:
           PACKAGE: ${{ inputs.package }}
           GH_TOKEN: ${{ github.token }}
+          YTDL_SUB_RELEASE: ${{ needs.preflight.outputs.ytdl_sub_release }}
         run: |
           set -euo pipefail
           mkdir -p dist

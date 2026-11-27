@@ -1,17 +1,45 @@
 #!/bin/sh
-# Repackage the upstream Linux x86-64 PyInstaller release, with a pinned digest.
+# Repackage the latest stable Linux x86-64 PyInstaller release.
 set -eu
+umask 022
 cd "$(dirname "$0")/../.."
 
-VERSION=2026.11.26
-REVISION=1
+REVISION=$(cat packages/ytdl-sub/revision)
 ARCH=amd64
-SHA256=017e7f926415db99a3e003dc7e794a575bd5f0212c356134a16b395258e4ae39
-URL="https://github.com/jmbannon/ytdl-sub/releases/download/$VERSION/ytdl-sub"
-
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT HUP INT TERM
-curl -fL --retry 3 -o "$tmp/ytdl-sub" "$URL"
+
+# CI passes the exact release resolved by preflight, avoiding a second lookup
+# and a race between checking a version and downloading its binary.
+if [ -z "${YTDL_SUB_RELEASE:-}" ]; then
+    if [ -n "${GH_TOKEN:-}" ]; then
+        set -- -H "Authorization: Bearer $GH_TOKEN"
+    else
+        set --
+    fi
+    curl -fLsS --retry 3 "$@" \
+        https://api.github.com/repos/jmbannon/ytdl-sub/releases/latest \
+        -o "$tmp/release.json"
+    YTDL_SUB_RELEASE=$(python3 packages/ytdl-sub/release-info < "$tmp/release.json")
+fi
+read -r VERSION ASSET_ID SHA256 SOURCE_DATE_EPOCH extra <<EOF
+$YTDL_SUB_RELEASE
+EOF
+test -n "$VERSION" && test -n "$ASSET_ID" && test -n "$SHA256" && test -n "$SOURCE_DATE_EPOCH" && test -z "$extra"
+export SOURCE_DATE_EPOCH
+URL="https://github.com/jmbannon/ytdl-sub/releases/download/$VERSION/ytdl-sub"
+
+# Prefer the public release URL; fall back to the resolved asset ID.
+if ! curl -fL --retry 3 -o "$tmp/ytdl-sub" "$URL"; then
+    if [ -n "${GH_TOKEN:-}" ]; then
+        set -- -H "Authorization: Bearer $GH_TOKEN"
+    else
+        set --
+    fi
+    curl -fL --retry 3 "$@" -H 'Accept: application/octet-stream' \
+        -o "$tmp/ytdl-sub" \
+        "https://api.github.com/repos/jmbannon/ytdl-sub/releases/assets/$ASSET_ID"
+fi
 printf '%s  %s\n' "$SHA256" "$tmp/ytdl-sub" | sha256sum -c -
 
 pkg="$tmp/pkg"
@@ -55,5 +83,6 @@ License: GPL-3
  /usr/share/common-licenses/GPL-3.
 EOF
 
+find "$pkg" -exec touch -h -d "@$SOURCE_DATE_EPOCH" {} +
 mkdir -p dist
 dpkg-deb --build --root-owner-group "$pkg" "dist/ytdl-sub_${VERSION}-${REVISION}_${ARCH}.deb"

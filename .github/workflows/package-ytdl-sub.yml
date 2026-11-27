@@ -9,7 +9,15 @@ on:
     branches: [main]
     paths:
       - 'packages/ytdl-sub/**'
+      - '.github/workflows/package-ytdl-sub.yml'
+      - '.github/workflows/package-build.yml'
+  schedule:
+    - cron: '17 */6 * * *'
   workflow_dispatch:
+
+concurrency:
+  group: package-ytdl-sub
+  cancel-in-progress: false
 
 jobs:
   build:
