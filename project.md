@@ -14,6 +14,10 @@ Electron's sandbox helper retains setuid mode, rather than disabling sandbox.
 The package has its own version preflight to skip unchanged published builds,
 and uses the shared Debian 13 smoke tests and immutable R2 publisher. A
 Debian revision bump is required whenever packaging contents change.
+A push that only changes workflow infrastructure skips an already-published
+Agentify version successfully; the preflight checks the full push diff for
+changes under `packages/agentify-desktop/` before requiring a revision bump.
+A corrupt downloaded package index fails preflight instead of causing a rebuild.
 
 A graphical desktop session is needed for the browser. OpenCode should be
 configured to invoke `agentify-desktop mcp` over stdio on the same machine.

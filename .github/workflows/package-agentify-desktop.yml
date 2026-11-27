@@ -20,9 +20,13 @@ jobs:
       build: ${{ steps.version.outputs.build }}
     steps:
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
       - name: Check published version before downloading dependencies
         id: version
         shell: bash
+        env:
+          BEFORE_SHA: ${{ github.event.before }}
         run: |
           set -euo pipefail
           source packages/agentify-desktop/version
@@ -30,7 +34,8 @@ jobs:
           curl -fLsS --retry 3 \
             https://apt.mbligh.org/dists/trixie/main/binary-amd64/Packages.gz \
             -o /tmp/agentify-Packages.gz
-          if gzip -cd /tmp/agentify-Packages.gz | awk -v wanted="$package_version" '
+          gzip -cd /tmp/agentify-Packages.gz > /tmp/agentify-Packages
+          if awk -v wanted="$package_version" '
               BEGIN { RS = "" }
               /(^|\n)Package: agentify-desktop(\n|$)/ {
                 n = split($0, lines, "\n")
@@ -38,11 +43,19 @@ jobs:
                   if (lines[i] == "Version: " wanted) found = 1
               }
               END { exit !found }
-            '; then
+            ' /tmp/agentify-Packages; then
             if [[ "$GITHUB_EVENT_NAME" == push ]]; then
-              echo "::error::Already published $package_version; bump REVISION for packaging changes."
-              exit 1
+              # A workflow-only change does not modify the package recipe.
+              if ! git cat-file -e "${BEFORE_SHA}^{commit}" 2>/dev/null; then
+                echo "::error::Cannot determine whether packaging changed; compare the push base before rebuilding."
+                exit 1
+              fi
+              if ! git diff --quiet "$BEFORE_SHA" HEAD -- packages/agentify-desktop/; then
+                echo "::error::Already published $package_version; bump REVISION for packaging changes."
+                exit 1
+              fi
             fi
+            echo "agentify-desktop $package_version already published; skipping unchanged package."
             echo "build=false" >> "$GITHUB_OUTPUT"
           else
             echo "build=true" >> "$GITHUB_OUTPUT"
