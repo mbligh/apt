@@ -3,10 +3,10 @@
 set -eu
 cd "$(dirname "$0")/../.."
 
-VERSION=2026.11.10.post2
-REVISION=2
+VERSION=2026.11.26
+REVISION=1
 ARCH=amd64
-SHA256=032bf52d19770779f575f00950c8f1082f5b51e64e3e31f3158b33b25bebfbbb
+SHA256=017e7f926415db99a3e003dc7e794a575bd5f0212c356134a16b395258e4ae39
 URL="https://github.com/jmbannon/ytdl-sub/releases/download/$VERSION/ytdl-sub"
 
 tmp=$(mktemp -d)
