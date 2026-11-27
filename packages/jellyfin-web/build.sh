@@ -4,7 +4,7 @@ set -eu
 cd "$(dirname "$0")/../.."
 
 # Update this pin and commit a new recipe whenever the source patch changes.
-SOURCE_COMMIT=9d656dcd477585739ee075d770955563cc7e64b4
+SOURCE_COMMIT=952581adfb828e292cb587ea4bc9daa080a9de7d
 SOURCE_REPO=https://github.com/mbligh/jellyfin-web.git
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT HUP INT TERM
@@ -28,6 +28,7 @@ echo "Building jellyfin-web $version from $SOURCE_COMMIT"
     cd "$tmp/source"
     CI=true npm ci --no-audit --no-fund
     npm run build:check
+    npm test -- src/components/images/imageLoader.test.ts
     npm run build:production
 )
 test -s "$tmp/source/dist/index.html"
@@ -45,6 +46,7 @@ Patch branch: mbligh-v12.4
 Shows series/movie posters in portrait Next Up and Continue Watching cards by default.
 Season episode thumbnails are widescreen 16:9.
 Season episode listings show air dates, omit estimated end times, and clamp descriptions to six lines.
+Backports upstream lazy thumbnail loading fix (#8824).
 No runtime Node.js/npm dependency.
 EOF
 # Preserve existing admin edits to the upstream-configured conffile.
@@ -61,7 +63,7 @@ Homepage: https://github.com/mbligh/jellyfin-web
 Description: Jellyfin Web client (mbligh poster and episode-image patches)
  Jellyfin 12.4 frontend with portrait series/movie art in Next Up and
  Continue Watching, widescreen 16:9 episode thumbnails, original air dates,
- and compact season episode descriptions.
+ compact season episode descriptions, and the upstream thumbnail loading fix.
  Includes no Node.js or npm runtime dependency.
 EOF
 # Normalize archive timestamps so rebuilding the pinned source is repeatable.
