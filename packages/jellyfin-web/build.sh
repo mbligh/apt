@@ -4,7 +4,7 @@ set -eu
 cd "$(dirname "$0")/../.."
 
 # Update this pin and commit a new recipe whenever the source patch changes.
-SOURCE_COMMIT=59f5492e7cd5acb6530a11d7dd8477ab7a1bea55
+SOURCE_COMMIT=03282c47aace0ed96d4e4e3d94d0cf65abd778e5
 SOURCE_REPO=https://github.com/mbligh/jellyfin-web.git
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT HUP INT TERM
@@ -28,7 +28,7 @@ echo "Building jellyfin-web $version from $SOURCE_COMMIT"
     cd "$tmp/source"
     CI=true npm ci --no-audit --no-fund
     npm run build:check
-    npm test -- src/components/images/imageLoader.test.ts
+    npm test -- src/components/images/imageLoader.test.ts src/components/common/Image.test.tsx
     npm run build:production
 )
 test -s "$tmp/source/dist/index.html"
@@ -47,6 +47,7 @@ Shows series/movie posters in portrait Next Up and Continue Watching cards by de
 Season episode thumbnails are widescreen 16:9.
 Season episode listings show air dates, omit estimated end times, and clamp descriptions to six lines.
 Backports upstream lazy thumbnail loading fix (#8824).
+Modern React library cards use native lazy image loading without opacity gating.
 Scroll wheel volume control during playback is disabled by default, with a per-user opt-in.
 No runtime Node.js/npm dependency.
 EOF
@@ -65,7 +66,7 @@ Description: Jellyfin Web client (mbligh poster and episode-image patches)
  Jellyfin 12.4 frontend with portrait series/movie art in Next Up and
  Continue Watching, widescreen 16:9 episode thumbnails, original air dates,
  compact season episode descriptions, the upstream thumbnail loading fix,
- and opt-in scroll wheel volume control.
+ native lazy loading for modern library cards, and opt-in scroll wheel volume control.
  Includes no Node.js or npm runtime dependency.
 EOF
 # Normalize archive timestamps so rebuilding the pinned source is repeatable.
