@@ -1,4 +1,4 @@
-# Dispatch after upstream cfsolve releases or tools/video/cf-curl changes.
+# Check upstream immutable release and cf-curl source versions before building.
 name: Build cfsolve and cf-curl
 
 permissions:
@@ -11,7 +11,13 @@ on:
     paths:
       - 'packages/cfsolve/**'
       - '.github/workflows/package-cfsolve.yml'
+  schedule:
+    - cron: '43 * * * *'
   workflow_dispatch:
+
+concurrency:
+  group: package-cfsolve
+  cancel-in-progress: false
 
 jobs:
   build:

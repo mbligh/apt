@@ -284,3 +284,7 @@ key. The publishing workflow intentionally fails when `TOOLS_DEPLOY_KEY`
 is absent. Initial publication and end-to-end APT installation remain to be
 verified once the user configures that key. The scheduled workflow may fail
 if Actions is disabled or the private-source checkout loses access.
+
+## Automatic cfsolve package updates
+
+`package-cfsolve.yml` checks the current immutable Debian 13 release from `mbligh/cfsolve` and `video/cf-curl` source commit hourly (minute 43). The reusable build preflight calculates the exact Debian version and compares it to the authoritative R2 Packages index; already published versions skip downloads, builds and index publication. For new versions the build pins the selected release tag and tools checkout commit, verifies the resolved version, and follows existing validation and R2 publication. No additional secrets or cross-repository write token. Artifact-changing local edits require a revision bump; automation-only refactoring does not.

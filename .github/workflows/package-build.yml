@@ -14,11 +14,14 @@ permissions:
 
 jobs:
   preflight:
-    if: startsWith(inputs.package, 'pypi-') || inputs.package == 'ytdl-sub'
+    if: startsWith(inputs.package, 'pypi-') || inputs.package == 'ytdl-sub' || inputs.package == 'cfsolve'
     runs-on: ubuntu-24.04
     environment: github-pages
     outputs:
-      build: ${{ steps.check.outputs.build || steps.ytdl.outputs.build }}
+      build: ${{ steps.check.outputs.build || steps.ytdl.outputs.build || steps.cfsolve.outputs.build }}
+      cfsolve_version: ${{ steps.cfsolve.outputs.version }}
+      cfsolve_release: ${{ steps.cfsolve.outputs.release }}
+      cfsolve_tools_ref: ${{ steps.cfsolve.outputs.tools_ref }}
       ytdl_sub_release: ${{ steps.ytdl.outputs.release }}
     steps:
       - uses: actions/checkout@v5
@@ -104,6 +107,70 @@ jobs:
           echo "Unpublished ytdl-sub $wanted; build required."
           echo "build=true" >> "$GITHUB_OUTPUT"
           echo "release=$release" >> "$GITHUB_OUTPUT"
+      - name: Checkout cf-curl for version preflight
+        if: inputs.package == 'cfsolve'
+        uses: actions/checkout@v5
+        with:
+          repository: mbligh/tools
+          ref: master
+          ssh-key: ${{ secrets.TOOLS_DEPLOY_KEY }}
+          path: private-tools
+          persist-credentials: false
+          fetch-depth: 0
+          sparse-checkout: |
+            video/cf-curl
+          sparse-checkout-cone-mode: false
+      - name: Check cfsolve version before downloading binary or building
+        if: inputs.package == 'cfsolve'
+        id: cfsolve
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          AWS_EC2_METADATA_DISABLED: 'true'
+        run: |
+          set -euo pipefail
+          for variable in R2_ACCOUNT_ID AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY; do
+            test -n "${!variable}" || { echo "::error::Missing R2 secret: $variable"; exit 1; }
+          done
+          resolved=$(sh packages/cfsolve/build.sh --resolve)
+          read -r wanted release tools_ref <<< "$resolved"
+          [[ "$wanted" =~ ^0\.[0-9]{14}\+cf[0-9a-f]{12}\.t[0-9a-f]{12}-[0-9]+$ ]]
+          [[ "$release" =~ ^build-[0-9a-f]{12}$ ]]
+          [[ "$tools_ref" =~ ^[0-9a-f]{40}$ ]]
+          aws --endpoint-url "https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com" s3api get-object \
+            --bucket mbligh-apt --key dists/trixie/main/binary-amd64/Packages.gz \
+            /tmp/cfsolve-Packages.gz >/dev/null
+          gzip -cd /tmp/cfsolve-Packages.gz > /tmp/cfsolve-Packages
+          grep -q '^Package: ' /tmp/cfsolve-Packages
+          published=$(awk '
+            BEGIN { RS = ""; FS = "\n" }
+            {
+              package = version = arch = filename = digest = ""
+              for (i=1; i<=NF; i++) {
+                if ($i ~ /^Package: /) package = substr($i,10)
+                if ($i ~ /^Version: /) version = substr($i,10)
+                if ($i ~ /^Architecture: /) arch = substr($i,15)
+                if ($i ~ /^Filename: /) filename = substr($i,11)
+                if ($i ~ /^SHA256: /) digest = substr($i,9)
+              }
+              if (package == "cfsolve" && arch == "amd64" && version != "" && filename != "" && digest != "")
+                print version
+            }
+          ' /tmp/cfsolve-Packages)
+          for existing in $published; do
+            if dpkg --compare-versions "$existing" ge "$wanted"; then
+              echo "cfsolve $existing already published (candidate $wanted); skipping."
+              echo "build=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          done
+          echo "Unpublished cfsolve $wanted; build required."
+          printf 'build=true\nversion=%s\nrelease=%s\ntools_ref=%s\n' \
+            "$wanted" "$release" "$tools_ref" >> "$GITHUB_OUTPUT"
   build:
     needs: preflight
     if: ${{ always() && (needs.preflight.result == 'skipped' || (needs.preflight.result == 'success' && needs.preflight.outputs.build == 'true')) }}
@@ -162,7 +229,7 @@ jobs:
         uses: actions/checkout@v5
         with:
           repository: mbligh/tools
-          ref: master
+          ref: ${{ needs.preflight.outputs.cfsolve_tools_ref }}
           ssh-key: ${{ secrets.TOOLS_DEPLOY_KEY }}
           path: private-tools
           persist-credentials: false
@@ -186,6 +253,8 @@ jobs:
           PACKAGE: ${{ inputs.package }}
           GH_TOKEN: ${{ github.token }}
           YTDL_SUB_RELEASE: ${{ needs.preflight.outputs.ytdl_sub_release }}
+          CFSOLVE_RELEASE_TAG: ${{ needs.preflight.outputs.cfsolve_release }}
+          CFSOLVE_EXPECTED_VERSION: ${{ needs.preflight.outputs.cfsolve_version }}
         run: |
           set -euo pipefail
           mkdir -p dist

@@ -5,6 +5,8 @@ cd "$(dirname "$0")/../.."
 
 REVISION=1
 ARCH=amd64
+MODE=${1:-build}
+case "$MODE" in build|--resolve) ;; *) echo 'Expected build or --resolve' >&2; exit 2 ;; esac
 TOOLS_SOURCE=private-tools/video/cf-curl
 
 test -f "$TOOLS_SOURCE" || {
@@ -30,7 +32,7 @@ curl -fsSL --retry 3 "$@" -H 'Accept: application/vnd.github+json' \
     -o "$tmp/releases.json" \
     'https://api.github.com/repos/mbligh/cfsolve/releases?per_page=30'
 
-python3 - "$tmp/releases.json" > "$tmp/source-info" <<'PY'
+python3 - "$tmp/releases.json" "${CFSOLVE_RELEASE_TAG:-}" > "$tmp/source-info" <<'PY'
 import datetime
 import json
 import re
@@ -39,8 +41,10 @@ import sys
 releases = json.load(open(sys.argv[1]))
 if not isinstance(releases, list):
     raise SystemExit('GitHub did not return a release list')
+wanted = sys.argv[2]
 release = next((r for r in releases if re.fullmatch(r'build-[0-9a-f]{12}',
-               r.get('tag_name', '')) and not r.get('draft')), None)
+               r.get('tag_name', '')) and not r.get('draft')
+               and (not wanted or r['tag_name'] == wanted)), None)
 if release is None:
     raise SystemExit('No published, immutable cfsolve build release found')
 assets = {a['name']: a for a in release.get('assets', [])}
@@ -86,6 +90,14 @@ export SOURCE_DATE_EPOCH
 STAMP=$(date -u -d "@$SOURCE_DATE_EPOCH" +%Y%m%d%H%M%S)
 VERSION="0.$STAMP+cf${CFSOLVE_TAG#build-}.t$(printf '%s' "$TOOLS_SHA" | cut -c1-12)-$REVISION"
 
+if [ "$MODE" = --resolve ]; then
+    printf '%s %s %s\n' "$VERSION" "$CFSOLVE_TAG" "$(git -C private-tools rev-parse HEAD)"
+    exit 0
+fi
+if [ -n "${CFSOLVE_EXPECTED_VERSION:-}" ] && [ "$VERSION" != "$CFSOLVE_EXPECTED_VERSION" ]; then
+    echo "Resolved cfsolve version $VERSION differs from preflight $CFSOLVE_EXPECTED_VERSION" >&2
+    exit 1
+fi
 echo "Packaging cfsolve $CFSOLVE_TAG and tools/video/cf-curl $TOOLS_SHA as $VERSION"
 curl -fLsS --retry 3 -o "$tmp/cfsolve-debian13-amd64.tar.gz" "$ARCHIVE_URL"
 curl -fLsS --retry 3 -o "$tmp/SHA256SUMS" "$SUM_URL"

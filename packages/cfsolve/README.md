@@ -52,10 +52,15 @@ sudo apt update
 sudo apt install cfsolve
 ```
 
-A new `mbligh/cfsolve` release or change to `video/cf-curl` requires a new
-run of `package-cfsolve.yml` (manual dispatch); it is not automatically
-cross-repository dispatched. The package workflow deliberately does not run
-daily when both upstream inputs are unchanged.
+The hourly workflow checks both upstream sources at minute 43, compares the
+computed version with the authoritative R2 Packages index, and skips the
+binary download, dependency installation, build, smoke test and publication
+when an equal or newer package is already indexed. It pins the release tag
+and private tools checkout commit between preflight and build. Manual
+dispatch remains available for immediate checks. No cross-repository write
+token or additional secrets are required. The schedule may be delayed by
+GitHub Actions. Local artifact-changing recipe edits still require bumping
+REVISION. The preflight-only refactor leaves REVISION unchanged.
 
 ## Diagnostics
 
